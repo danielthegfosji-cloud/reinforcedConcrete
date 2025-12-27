@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prestressed Concrete | RC Design Suite</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- MathJax -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .viz-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .canvas-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            max-width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background-color: #f8fafc;
+        }
+        .status-box {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-success { background: #dcfce7; color: #166534; }
+        .status-warning { background: #fef3c7; color: #92400e; }
+        .status-danger { background: #fee2e2; color: #991b1b; }
+        
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent);
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Prestress Inputs</h2>
+            
+            <div class="section-header">Material Properties</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="35" step="1">
+                </div>
+                <div class="form-col">
+                    <label>$f'_{ci}$ (at transfer)</label>
+                    <input type="number" id="fci" value="25" step="1">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Steel $f_{pu}$ (MPa)</label>
+                    <input type="number" id="fpu" value="1860" step="10">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_{py}$ (MPa)</label>
+                    <input type="number" id="fpy" value="1670" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Geometry & Prestress</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Width $b$ (mm)</label>
+                    <input type="number" id="width" value="300" step="10">
+                </div>
+                <div class="form-col">
+                    <label>Height $h$ (mm)</label>
+                    <input type="number" id="height" value="600" step="10">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Span $L$ (m)</label>
+                    <input type="number" id="span" value="12" step="0.5">
+                </div>
+                <div class="form-col">
+                    <label>Eccentricity $e$ (mm)</label>
+                    <input type="number" id="ecc" value="150" step="5">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Area $A_{ps}$ (mm²)</label>
+                    <input type="number" id="aps" value="800" step="10">
+                </div>
+                <div class="form-col">
+                    <label>Initial Stress $f_{pi}$</label>
+                    <input type="number" id="fpi" value="1300" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Loads & Losses</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>SDL (kN/m)</label>
+                    <input type="number" id="wd" value="5" step="0.5">
+                </div>
+                <div class="form-col">
+                    <label>Live Load (kN/m)</label>
+                    <input type="number" id="wl" value="10" step="0.5">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Total Losses (%)</label>
+                <input type="number" id="losses" value="15" step="1">
+            </div>
+
+            <button class="calc-btn" onclick="calculate()">Calculate Design</button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="hero">
+            <h1>Prestressed Concrete Analysis</h1>
+            <p>Calculate stresses at transfer and service, ultimate moment capacity, and shear strength based on ACI 318M-11.</p>
+        </div>
+
+        <div class="viz-container">
+            <div class="canvas-card">
+                <div class="canvas-title">Section & Tendon Detail</div>
+                <canvas id="sectionCanvas" width="300" height="400"></canvas>
+            </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Stress Distribution (MPa)</div>
+                <canvas id="stressCanvas" width="300" height="400"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div id="resultsArea">
+                <p style="color: #64748b; font-style: italic; text-align: center;">Enter parameters and click Calculate to see results.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function calculate() {
+            // 1. Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fci = parseFloat(document.getElementById('fci').value);
+            const fpu = parseFloat(document.getElementById('fpu').value);
+            const fpy = parseFloat(document.getElementById('fpy').value);
+            const b = parseFloat(document.getElementById('width').value);
+            const h = parseFloat(document.getElementById('height').value);
+            const L = parseFloat(document.getElementById('span').value);
+            const e = parseFloat(document.getElementById('ecc').value);
+            const aps = parseFloat(document.getElementById('aps').value);
+            const fpi = parseFloat(document.getElementById('fpi').value);
+            const wd_super = parseFloat(document.getElementById('wd').value);
+            const wl = parseFloat(document.getElementById('wl').value);
+            const loss_pct = parseFloat(document.getElementById('losses').value) / 100;
+
+            // 2. Section Properties
+            const A = b * h;
+            const I = (b * Math.pow(h, 3)) / 12;
+            const c = h / 2;
+            const S = I / c;
+            const w_beam = (A / 1e6) * 24; // kN/m
+
+            // 3. Forces and Moments
+            const Pi = aps * fpi / 1000; // kN
+            const Pe = Pi * (1 - loss_pct); // kN
+            
+            const Mg = (w_beam * L * L) / 8; // kN-m
+            const Ms = (wd_super * L * L) / 8; // kN-m
+            const Ml = (wl * L * L) / 8; // kN-m
+            const M_total = Mg + Ms + Ml;
+
+            // 4. Stress Calculations (at midspan)
+            // Initial (at transfer)
+            const stress_top_i = (-Pi*1000/A) + (Pi*1000*e*c/I) - (Mg*1e6*c/I);
+            const stress_bot_i = (-Pi*1000/A) - (Pi*1000*e*c/I) + (Mg*1e6*c/I);
+
+            // Final (at service)
+            const stress_top_s = (-Pe*1000/A) + (Pe*1000*e*c/I) - (M_total*1e6*c/I);
+            const stress_bot_s = (-Pe*1000/A) - (Pe*1000*e*c/I) + (M_total*1e6*c/I);
+
+            // 5. Ultimate Strength (Bonded)
+            const dp = h/2 + e;
+            const rho_p = aps / (b * dp);
+            const gamma_p = (fpy/fpu >= 0.9) ? 0.28 : (fpy/fpu >= 0.85 ? 0.40 : 0.55);
+            const beta1 = (fc <= 28) ? 0.85 : Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7);
+            
+            // ACI 18.7.2
+            const fps = fpu * (1 - (gamma_p / beta1) * (rho_p * fpu / fc));
+            const a = (aps * fps) / (0.85 * fc * b);
+            const Mn = aps * fps * (dp - a/2) / 1e6; // kN-m
+            const phiMn = 0.9 * Mn;
+
+            // 6. Shear Capacity (Approximate)
+            const Vu = (1.2 * (w_beam + wd_super) + 1.6 * wl) * L / 2;
+            const Mu = (1.2 * (w_beam + wd_super) + 1.6 * wl) * L * L / 8;
+            // Vc = (0.05*sqrt(fc) + 4.8*Vu*dp/Mu) * b * d
+            const Vc = (0.05 * Math.sqrt(fc) + 4.8 * (Vu * dp) / (Mu * 1000)) * b * dp / 1000;
+            const phiVc = 0.75 * Vc;
+
+            // 7. Render Results
+            const resultsArea = document.getElementById('resultsArea');
+            
+            // Allowable checks
+            const allow_ti = 0.5 * Math.sqrt(fci); // Tension at transfer
+            const allow_ci = -0.6 * fci; // Compression at transfer
+            const allow_ts = 0.5 * Math.sqrt(fc); // Tension at service (Class U)
+            const allow_cs = -0.45 * fc; // Compression at service
+
+            // Class Determination (ACI 18.3.3)
+            let beamClass = "U";
+            const ft_limit_u = 0.62 * Math.sqrt(fc); // ~7.5*sqrt(fc) in psi
+            const ft_limit_t = 1.0 * Math.sqrt(fc);  // ~12*sqrt(fc) in psi
+            
+            if (stress_bot_s <= ft_limit_u) beamClass = "U (Uncracked)";
+            else if (stress_bot_s <= ft_limit_t) beamClass = "T (Transition)";
+            else beamClass = "C (Cracked)";
+
+            resultsArea.innerHTML = `
+                <div class="status-box ${Math.min(stress_top_i, stress_bot_i) > allow_ci && Math.max(stress_top_i, stress_bot_i) < allow_ti ? 'status-success' : 'status-warning'}">
+                    <i class="fa-solid fa-circle-info"></i>
+                    Stage 1: Transfer Stresses ${Math.min(stress_top_i, stress_bot_i) > allow_ci && Math.max(stress_top_i, stress_bot_i) < allow_ti ? 'OK' : 'Check Limits'}
+                </div>
+                <div style="margin-bottom: 1rem; font-weight: 600; color: var(--text-main);">Service Classification: Class ${beamClass}</div>
+
+                <div class="math-block">
+                    <strong>Initial Stresses (at transfer):</strong><br>
+                    $f_{top} = ${stress_top_i.toFixed(2)} \\text{ MPa}$ (Limit: ${allow_ti.toFixed(2)} / ${allow_ci.toFixed(2)})<br>
+                    $f_{bot} = ${stress_bot_i.toFixed(2)} \\text{ MPa}$ (Limit: ${allow_ti.toFixed(2)} / ${allow_ci.toFixed(2)})
+                </div>
+
+                <div class="status-box ${stress_bot_s > -allow_ts && stress_top_s > allow_cs ? 'status-success' : 'status-warning'}">
+                    <i class="fa-solid fa-circle-info"></i>
+                    Stage 2: Service Stresses ${stress_bot_s > -allow_ts && stress_top_s > allow_cs ? 'OK' : 'Check Limits'}
+                </div>
+
+                <div class="math-block">
+                    <strong>Final Stresses (at service):</strong><br>
+                    $f_{top} = ${stress_top_s.toFixed(2)} \\text{ MPa}$ (Limit: ${allow_cs.toFixed(2)})<br>
+                    $f_{bot} = ${stress_bot_s.toFixed(2)} \\text{ MPa}$ (Limit: ${allow_ts.toFixed(2)})
+                </div>
+
+                <div class="result-section-header" style="font-weight:700; margin-top:1rem; border-bottom: 2px solid var(--accent);">Strength Capacities</div>
+                <div class="math-block">
+                    Estimated $f_{ps} = ${fps.toFixed(1)} \\text{ MPa}$<br>
+                    Nominal Strength $M_n = ${Mn.toFixed(1)} \\text{ kN-m}$<br>
+                    Design Strength $\\phi M_n = ${phiMn.toFixed(1)} \\text{ kN-m}$
+                </div>
+
+                <div class="math-block">
+                    Concrete Shear $\\phi V_c = ${phiVc.toFixed(1)} \\text{ kN}$ (Approx. Method)<br>
+                    Factored Shear $V_u = ${Vu.toFixed(1)} \\text{ kN}$
+                </div>
+            `;
+
+            drawSection(b, h, e, aps);
+            drawStresses(stress_top_i, stress_bot_i, stress_top_s, stress_bot_s);
+            MathJax.typesetPromise();
+        }
+
+        function drawSection(b, h, e, aps) {
+            const canvas = document.getElementById('sectionCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 300, 400);
+
+            const scale = 300 / Math.max(b, h);
+            const drawW = b * scale;
+            const drawH = h * scale;
+            const ox = (300 - drawW) / 2;
+            const oy = (400 - drawH) / 2;
+
+            // Beam
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.fillRect(ox, oy, drawW, drawH);
+            ctx.strokeRect(ox, oy, drawW, drawH);
+
+            // Centroid Axis
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.moveTo(ox - 10, oy + drawH/2);
+            ctx.lineTo(ox + drawW + 10, oy + drawH/2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Tendon
+            const tendonY = oy + drawH/2 + e * scale;
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(ox + drawW/2, tendonY, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Labels
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${b} mm`, 150, oy - 10);
+            ctx.save();
+            ctx.translate(ox - 15, 200);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText(`${h} mm`, 0, 0);
+            ctx.restore();
+        }
+
+        function drawStresses(ti, bi, ts, bs) {
+            const canvas = document.getElementById('stressCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 300, 400);
+
+            const h_draw = 300;
+            const oy = 50;
+            const ox = 150;
+
+            // Baseline
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox, oy + h_draw);
+            ctx.stroke();
+
+            // Scale for stress (MPa to pixels)
+            const max_s = Math.max(Math.abs(ti), Math.abs(bi), Math.abs(ts), Math.abs(bs), 10);
+            const s_scale = 100 / max_s;
+
+            // Initial Stress (Dashed Blue)
+            ctx.strokeStyle = '#3b82f6';
+            ctx.setLineDash([5, 2]);
+            ctx.beginPath();
+            ctx.moveTo(ox + ti * s_scale, oy);
+            ctx.lineTo(ox + bi * s_scale, oy + h_draw);
+            ctx.stroke();
+
+            // Service Stress (Solid Red)
+            ctx.strokeStyle = '#ef4444';
+            ctx.setLineDash([]);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ox + ts * s_scale, oy);
+            ctx.lineTo(ox + bs * s_scale, oy + h_draw);
+            ctx.stroke();
+
+            // Labels
+            ctx.font = '10px Inter';
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillText(`Initial: ${ti.toFixed(1)}`, ox + ti * s_scale + (ti > 0 ? 5 : -50), oy - 5);
+            ctx.fillText(`${bi.toFixed(1)}`, ox + bi * s_scale + (bi > 0 ? 5 : -50), oy + h_draw + 15);
+
+            ctx.fillStyle = '#ef4444';
+            ctx.fillText(`Service: ${ts.toFixed(1)}`, ox + ts * s_scale + (ts > 0 ? 5 : -50), oy + 15);
+            ctx.fillText(`${bs.toFixed(1)}`, ox + bs * s_scale + (bs > 0 ? 5 : -50), oy + h_draw - 5);
+
+            ctx.fillStyle = '#64748b';
+            ctx.textAlign = 'center';
+            ctx.fillText('Compression (-)', ox - 50, oy + h_draw + 40);
+            ctx.fillText('Tension (+)', ox + 50, oy + h_draw + 40);
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>

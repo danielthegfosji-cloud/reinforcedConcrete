@@ -23,7 +23,7 @@
     <style>
         .viz-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -180,6 +180,10 @@
                 <div class="canvas-title">Elevation View</div>
                 <canvas id="elevCanvas" width="400" height="300"></canvas>
             </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Isometric Detail (Boundary Element)</div>
+                <canvas id="isoCanvas" width="400" height="300"></canvas>
+            </div>
         </div>
 
         <div class="card">
@@ -303,12 +307,13 @@
                 <tr><td>Flexural (Ends)</td><td>$A_s = ${As_flex.toFixed(0)} \\text{ mm}^2$</td><td>${n_flex} - $\\phi${barF}$ each end</td><td class="check-pass">OK</td></tr>
             `;
 
-            drawPlan(lw, h, barF, n_flex, barV, sV);
+            drawPlan(lw, h, barF, n_flex, barV, sV, barH, sH);
             drawElevation(lw, hw, h, sH, sV);
+            drawIsometric(lw, hw, h, barF, n_flex, barV, sV, barH, sH);
             MathJax.typesetPromise();
         }
 
-        function drawPlan(lw, h, barF, nF, barV, sV) {
+        function drawPlan(lw, h, barF, nF, barV, sV, barH, sH) {
             const canvas = document.getElementById('planCanvas');
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, 400, 300);
@@ -321,29 +326,42 @@
             ctx.lineWidth = 2;
             ctx.strokeRect(ox, oy, lw * scale, h * scale);
 
+            // Horizontal Bars (Lines in plan view)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            const hOffset = Math.max(5, (h * scale) * 0.2); // Visual offset from face
+            ctx.beginPath();
+            ctx.moveTo(ox + 5, oy + hOffset);
+            ctx.lineTo(ox + lw * scale - 5, oy + hOffset);
+            ctx.moveTo(ox + 5, oy + h * scale - hOffset);
+            ctx.lineTo(ox + lw * scale - 5, oy + h * scale - hOffset);
+            ctx.stroke();
+
             // Boundary Elements (Flexural Steel)
-            ctx.fillStyle = '#ef4444';
-            const rF = (barF / 2) * scale;
+            ctx.fillStyle = '#f59e0b';
+            const rF = Math.max(2, (barF / 2) * scale);
             for (let i = 0; i < nF; i++) {
                 const row = i % 2;
                 const col = Math.floor(i / 2);
+                const yPos = row === 0 ? oy + hOffset : oy + h * scale - hOffset;
                 // Left end
                 ctx.beginPath();
-                ctx.arc(ox + 15 + col * 15, oy + 10 + row * (h * scale - 20), rF, 0, Math.PI * 2);
+                ctx.arc(ox + 15 + col * 15, yPos, rF, 0, Math.PI * 2);
                 ctx.fill();
                 // Right end
                 ctx.beginPath();
-                ctx.arc(ox + lw * scale - 15 - col * 15, oy + 10 + row * (h * scale - 20), rF, 0, Math.PI * 2);
+                ctx.arc(ox + lw * scale - 15 - col * 15, yPos, rF, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // Distributed Vertical Steel
+            // Distributed Vertical Steel (Dots)
             ctx.fillStyle = '#3b82f6';
-            const rV = 2;
-            for (let x = 80; x < lw * scale - 80; x += 40) {
+            const rV = Math.max(2, (barV / 2) * scale);
+            const stepV = sV * scale;
+            for (let x = stepV; x < lw * scale; x += stepV) {
                 ctx.beginPath();
-                ctx.arc(ox + x, oy + 8, rV, 0, Math.PI * 2);
-                ctx.arc(ox + x, oy + h * scale - 8, rV, 0, Math.PI * 2);
+                ctx.arc(ox + x, oy + hOffset, rV, 0, Math.PI * 2);
+                ctx.arc(ox + x, oy + h * scale - hOffset, rV, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -364,8 +382,18 @@
             ctx.lineWidth = 2;
             ctx.strokeRect(ox, oy - hw * scale, lw * scale, hw * scale);
 
+            // Flexural Bars at ends (Boundary Elements)
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(ox + 10, oy);
+            ctx.lineTo(ox + 10, oy - hw * scale);
+            ctx.moveTo(ox + lw * scale - 10, oy);
+            ctx.lineTo(ox + lw * scale - 10, oy - hw * scale);
+            ctx.stroke();
+
             // Horizontal Bars (Red)
-            ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+            ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 1;
             const stepH = (sH * scale);
             for (let y = stepH; y < hw * scale; y += stepH) {
@@ -376,7 +404,8 @@
             }
 
             // Vertical Bars (Blue)
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 1;
             const stepV = (sV * scale);
             for (let x = stepV; x < lw * scale; x += stepV) {
                 ctx.beginPath();
@@ -386,6 +415,91 @@
             }
 
             drawDim(ctx, ox - 20, oy - hw * scale, ox - 20, oy, `hw=${hw}`, true);
+        }
+
+        function drawIsometric(lw, hw, h, barF, nF, barV, sV, barH, sH) {
+            const canvas = document.getElementById('isoCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 300);
+
+            // Visualize the left end of the wall (Boundary Element)
+            const viewL = Math.min(lw, 1000); // Show up to 1m of length
+            const viewH = Math.min(hw, 1200); // Show up to 1.2m of height
+            
+            const scale = 120 / Math.max(viewL, h, viewH/2);
+            const ox = 180, oy = 220;
+
+            function project(x, y, z) {
+                // x: along wall length, y: wall thickness, z: wall height
+                return {
+                    px: ox + (x - y) * 0.866 * scale,
+                    py: oy + (x + y) * 0.5 * scale - z * scale
+                };
+            }
+
+            // Draw Concrete Box (Wireframe)
+            ctx.strokeStyle = 'rgba(51, 65, 85, 0.2)';
+            ctx.lineWidth = 1;
+            const corners = [
+                [0, 0, 0], [viewL, 0, 0], [viewL, h, 0], [0, h, 0],
+                [0, 0, viewH], [viewL, 0, viewH], [viewL, h, viewH], [0, h, viewH]
+            ].map(p => project(...p));
+
+            // Bottom
+            ctx.beginPath(); ctx.moveTo(corners[0].px, corners[0].py);
+            ctx.lineTo(corners[1].px, corners[1].py); ctx.lineTo(corners[2].px, corners[2].py);
+            ctx.lineTo(corners[3].px, corners[3].py); ctx.closePath(); ctx.stroke();
+            // Top
+            ctx.beginPath(); ctx.moveTo(corners[4].px, corners[4].py);
+            ctx.lineTo(corners[5].px, corners[5].py); ctx.lineTo(corners[6].px, corners[6].py);
+            ctx.lineTo(corners[7].px, corners[7].py); ctx.closePath(); ctx.stroke();
+            // Verticals
+            for(let i=0; i<4; i++) {
+                ctx.beginPath(); ctx.moveTo(corners[i].px, corners[i].py);
+                ctx.lineTo(corners[i+4].px, corners[i+4].py); ctx.stroke();
+            }
+
+            const hOffset = h * 0.2;
+
+            // Draw Horizontal Bars (Red) - Draw first so they are behind vertical bars
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            for (let z = sH; z <= viewH; z += sH) {
+                const p1 = project(0, hOffset, z);
+                const p2 = project(viewL, hOffset, z);
+                ctx.beginPath(); ctx.moveTo(p1.px, p1.py); ctx.lineTo(p2.px, p2.py); ctx.stroke();
+                const p3 = project(0, h - hOffset, z);
+                const p4 = project(viewL, h - hOffset, z);
+                ctx.beginPath(); ctx.moveTo(p3.px, p3.py); ctx.lineTo(p4.px, p4.py); ctx.stroke();
+            }
+
+            // Draw Flexural Bars (Amber)
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = Math.max(3, (barF/8) * scale);
+            const startX = 40; 
+            for (let i = 0; i < nF; i++) {
+                const row = i % 2;
+                const col = Math.floor(i / 2);
+                const xPos = startX + col * 40;
+                const yPos = row === 0 ? hOffset : h - hOffset;
+                if (xPos > viewL - 20) continue;
+                const pBot = project(xPos, yPos, 0);
+                const pTop = project(xPos, yPos, viewH);
+                ctx.beginPath(); ctx.moveTo(pBot.px, pBot.py); ctx.lineTo(pTop.px, pTop.py); ctx.stroke();
+            }
+
+            // Draw Vertical Shear Bars (Blue)
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 1.5;
+            const boundaryWidth = startX + Math.ceil(nF / 2) * 40;
+            for (let x = boundaryWidth + sV; x < viewL; x += sV) {
+                const p1Bot = project(x, hOffset, 0);
+                const p1Top = project(x, hOffset, viewH);
+                ctx.beginPath(); ctx.moveTo(p1Bot.px, p1Bot.py); ctx.lineTo(p1Top.px, p1Top.py); ctx.stroke();
+                const p2Bot = project(x, h - hOffset, 0);
+                const p2Top = project(x, h - hOffset, viewH);
+                ctx.beginPath(); ctx.moveTo(p2Bot.px, p2Bot.py); ctx.lineTo(p2Top.px, p2Top.py); ctx.stroke();
+            }
         }
 
         function drawDim(ctx, x1, y1, x2, y2, text, isVert) {

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flexural Analysis | RC Design Suite</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- MathJax -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .viz-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .canvas-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            max-width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background-color: #f8fafc;
+        }
+        .status-box {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-uncracked { background: #dcfce7; color: #166534; }
+        .status-cracked { background: #fef3c7; color: #92400e; }
+        .status-ultimate { background: #fee2e2; color: #991b1b; }
+        
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent);
+            overflow-x: auto;
+        }
+
+        .stage-indicator {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+        }
+        .stage-pill {
+            flex: 1;
+            padding: 8px;
+            text-align: center;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            background: #e2e8f0;
+            color: #64748b;
+            transition: all 0.3s ease;
+        }
+        .stage-pill.active {
+            background: var(--accent);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Beam Analysis Inputs</h2>
+            
+            <div class="section-header">Material Properties</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" step="1">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Geometry</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Width $b$ (mm)</label>
+                    <input type="number" id="width" value="300" step="10">
+                </div>
+                <div class="form-col">
+                    <label>Height $h$ (mm)</label>
+                    <input type="number" id="height" value="500" step="10">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Eff. Depth $d$ (mm)</label>
+                    <input type="number" id="depth" value="435" step="5">
+                </div>
+                <div class="form-col">
+                    <label>Steel Area $A_s$ (mm²)</label>
+                    <input type="number" id="as" value="1500" step="50">
+                </div>
+            </div>
+
+            <div class="section-header">Applied Load</div>
+            <div class="form-group">
+                <label>Service Moment $M_a$ (kN·m)</label>
+                <input type="number" id="moment" value="50" step="5">
+            </div>
+
+            <button class="calc-btn" onclick="calculate()">Analyze Section</button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="hero">
+            <h1>Flexural Analysis of Beams</h1>
+            <p>Explore the three stages of beam behavior: Uncracked, Cracked-Elastic, and Ultimate Strength as defined in Chapter 2.</p>
+        </div>
+
+        <div class="stage-indicator">
+            <div id="pill-uncracked" class="stage-pill">STAGE 1: UNCRACKED</div>
+            <div id="pill-cracked" class="stage-pill">STAGE 2: CRACKED-ELASTIC</div>
+            <div id="pill-ultimate" class="stage-pill">STAGE 3: ULTIMATE</div>
+        </div>
+
+        <div class="viz-container">
+            <div class="canvas-card">
+                <div class="canvas-title">Section & Neutral Axis</div>
+                <canvas id="sectionCanvas" width="300" height="400"></canvas>
+            </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Stress Distribution (MPa)</div>
+                <canvas id="stressCanvas" width="300" height="400"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div id="resultsArea">
+                <p style="color: #64748b; font-style: italic; text-align: center;">Enter parameters and click Analyze to see results.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function calculate() {
+            // 1. Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const b = parseFloat(document.getElementById('width').value);
+            const h = parseFloat(document.getElementById('height').value);
+            const d = parseFloat(document.getElementById('depth').value);
+            const As = parseFloat(document.getElementById('as').value);
+            const Ma = parseFloat(document.getElementById('moment').value); // kN-m
+
+            // 2. Material & Section Properties
+            const Ec = 4700 * Math.sqrt(fc);
+            const Es = 200000;
+            const n = Es / Ec;
+            const fr = 0.7 * Math.sqrt(fc); // Modulus of Rupture (MPa)
+            
+            const Ig = (b * Math.pow(h, 3)) / 12;
+            const yt = h / 2;
+            const Mcr = (fr * Ig / yt) / 1e6; // kN-m
+
+            // 3. Cracked Section Properties (Transformed Area)
+            // Solve for x (neutral axis from top): (b * x^2 / 2) = n * As * (d - x)
+            // (b/2)x^2 + (n*As)x - (n*As*d) = 0
+            const A_quad = b / 2;
+            const B_quad = n * As;
+            const C_quad = -n * As * d;
+            const x = (-B_quad + Math.sqrt(B_quad * B_quad - 4 * A_quad * C_quad)) / (2 * A_quad);
+            const Icr = (b * Math.pow(x, 3) / 3) + (n * As * Math.pow(d - x, 2));
+
+            // 4. Ultimate Strength
+            const beta1 = (fc <= 28) ? 0.85 : Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7);
+            const a = (As * fy) / (0.85 * fc * b);
+            const Mn = (As * fy * (d - a / 2)) / 1e6; // kN-m
+            const phiMn = 0.9 * Mn;
+
+            // 5. Determine Current Stage
+            let currentStage = "";
+            let fc_act = 0;
+            let fs_act = 0;
+            let stress_top = 0;
+            let stress_bot = 0;
+            let na_viz = h / 2;
+
+            const resultsArea = document.getElementById('resultsArea');
+            document.querySelectorAll('.stage-pill').forEach(p => p.classList.remove('active'));
+
+            if (Ma <= Mcr) {
+                currentStage = "Uncracked";
+                document.getElementById('pill-uncracked').classList.add('active');
+                stress_top = -(Ma * 1e6 * yt) / Ig;
+                stress_bot = (Ma * 1e6 * yt) / Ig;
+                fc_act = Math.abs(stress_top);
+                fs_act = n * (Ma * 1e6 * (d - h/2)) / Ig;
+                na_viz = h / 2;
+            } else if (Ma < Mn) {
+                currentStage = "Cracked-Elastic";
+                document.getElementById('pill-cracked').classList.add('active');
+                stress_top = -(Ma * 1e6 * x) / Icr;
+                stress_bot = 0; // Concrete cracked
+                fc_act = Math.abs(stress_top);
+                fs_act = n * (Ma * 1e6 * (d - x)) / Icr;
+                na_viz = x;
+            } else {
+                currentStage = "Ultimate (Failure)";
+                document.getElementById('pill-ultimate').classList.add('active');
+                stress_top = -0.85 * fc;
+                stress_bot = 0;
+                fc_act = 0.85 * fc;
+                fs_act = fy;
+                na_viz = a / beta1;
+            }
+
+            // 6. Render Results
+            resultsArea.innerHTML = `
+                <div class="status-box ${Ma <= Mcr ? 'status-uncracked' : (Ma < Mn ? 'status-cracked' : 'status-ultimate')}">
+                    <i class="fa-solid fa-circle-info"></i>
+                    Current State: ${currentStage.toUpperCase()}
+                </div>
+
+                <div class="math-block">
+                    <strong>Stage 1: Cracking Moment</strong><br>
+                    Modulus of Rupture $f_r = 0.7\\sqrt{f'_c} = ${fr.toFixed(2)} \\text{ MPa}$<br>
+                    Cracking Moment $M_{cr} = \\frac{f_r I_g}{y_t} = ${Mcr.toFixed(2)} \\text{ kN-m}$
+                </div>
+
+                <div class="math-block">
+                    <strong>Stage 2: Elastic Stresses (Transformed Section)</strong><br>
+                    Modular Ratio $n = ${n.toFixed(2)}$<br>
+                    Neutral Axis Depth $x = ${x.toFixed(1)} \\text{ mm}$<br>
+                    Concrete Stress $f_c = ${fc_act.toFixed(2)} \\text{ MPa}$ ${fc_act > 0.5*fc ? '<span style="color:red">(Non-linear range)</span>' : ''}<br>
+                    Steel Stress $f_s = ${fs_act.toFixed(2)} \\text{ MPa}$
+                </div>
+
+                <div class="math-block">
+                    <strong>Stage 3: Ultimate Strength</strong><br>
+                    Stress Block Depth $a = ${a.toFixed(1)} \\text{ mm}$<br>
+                    Nominal Strength $M_n = ${Mn.toFixed(1)} \\text{ kN-m}$<br>
+                    Design Strength $\\phi M_n = ${phiMn.toFixed(1)} \\text{ kN-m}$
+                </div>
+            `;
+
+            drawSection(b, h, na_viz, d, Ma > Mcr);
+            drawStresses(stress_top, stress_bot, fs_act / n, h, na_viz, d, Ma > Mcr, Ma >= Mn, fc);
+            MathJax.typesetPromise();
+        }
+
+        function drawSection(b, h, na, d, isCracked) {
+            const canvas = document.getElementById('sectionCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 300, 400);
+
+            const scale = 300 / Math.max(b, h);
+            const drawW = b * scale;
+            const drawH = h * scale;
+            const ox = (300 - drawW) / 2;
+            const oy = (400 - drawH) / 2;
+
+            // Beam
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.fillRect(ox, oy, drawW, drawH);
+            ctx.strokeRect(ox, oy, drawW, drawH);
+
+            // Cracks
+            if (isCracked) {
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 1;
+                for (let i = 1; i < 6; i++) {
+                    const cx = ox + (drawW / 6) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, oy + drawH);
+                    ctx.lineTo(cx + (Math.random()-0.5)*10, oy + na * scale + 20);
+                    ctx.stroke();
+                }
+            }
+
+            // Neutral Axis
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.moveTo(ox - 20, oy + na * scale);
+            ctx.lineTo(ox + drawW + 20, oy + na * scale);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#3b82f6';
+            ctx.font = '10px Inter';
+            ctx.fillText('N.A.', ox + drawW + 25, oy + na * scale + 4);
+
+            // Steel
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(ox + drawW/2, oy + d * scale, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Labels
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${b} mm`, 150, oy - 10);
+            ctx.save();
+            ctx.translate(ox - 15, 200);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText(`${h} mm`, 0, 0);
+            ctx.restore();
+        }
+
+        function drawStresses(top, bot, fs_n, h, na, d, isCracked, isUltimate, fc) {
+            const canvas = document.getElementById('stressCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 300, 400);
+
+            const h_draw = 300;
+            const oy = 50;
+            const ox = 150;
+            const scaleH = h_draw / h;
+
+            // Baseline
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox, oy + h_draw);
+            ctx.stroke();
+
+            // Scale for stress
+            const max_s = Math.max(Math.abs(top), Math.abs(bot), Math.abs(fs_n), 15);
+            const s_scale = 80 / max_s;
+
+            ctx.lineWidth = 2;
+            if (isUltimate) {
+                // Whitney Stress Block
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+                ctx.strokeStyle = '#3b82f6';
+                const a_scaled = (top / (-0.85 * fc)) * na * 0.85 * scaleH; // Simplified visual
+                ctx.fillRect(ox - 0.85 * fc * s_scale, oy, 0.85 * fc * s_scale, na * 0.85 * scaleH);
+                ctx.strokeRect(ox - 0.85 * fc * s_scale, oy, 0.85 * fc * s_scale, na * 0.85 * scaleH);
+                
+                // Steel Force
+                ctx.strokeStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(ox, oy + d * scaleH);
+                ctx.lineTo(ox + 80, oy + d * scaleH);
+                ctx.stroke();
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText('T = As fy', ox + 40, oy + d * scaleH - 5);
+            } else {
+                // Elastic Triangles
+                ctx.strokeStyle = '#3b82f6';
+                ctx.beginPath();
+                ctx.moveTo(ox + top * s_scale, oy);
+                ctx.lineTo(ox, oy + na * scaleH);
+                if (!isCracked) {
+                    ctx.lineTo(ox + bot * s_scale, oy + h_draw);
+                }
+                ctx.stroke();
+
+                // Steel Stress line
+                ctx.strokeStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(ox, oy + d * scaleH);
+                ctx.lineTo(ox + fs_n * s_scale, oy + d * scaleH);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#ef4444';
+                ctx.font = '10px Inter';
+                ctx.fillText(`fs/n`, ox + fs_n * s_scale + 5, oy + d * scaleH + 4);
+            }
+
+            // Labels
+            ctx.fillStyle = '#3b82f6';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${top.toFixed(1)} MPa`, ox + top * s_scale, oy - 10);
+            if (!isCracked && !isUltimate) {
+                ctx.fillText(`${bot.toFixed(1)} MPa`, ox + bot * s_scale, oy + h_draw + 15);
+            }
+
+            ctx.fillStyle = '#64748b';
+            ctx.fillText('Compression (-)', ox - 50, oy + h_draw + 40);
+            ctx.fillText('Tension (+)', ox + 50, oy + h_draw + 40);
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>

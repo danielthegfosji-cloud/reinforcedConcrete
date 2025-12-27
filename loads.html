@@ -102,6 +102,15 @@
                     <label class="form-label">Height $h$ (mm)</label>
                     <input type="number" id="height" class="form-control" value="450" step="10" required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Support Condition</label>
+                    <select id="supportCondition" class="form-control">
+                        <option value="simple">Simply Supported</option>
+                        <option value="cantilever">Cantilever</option>
+                        <option value="fixed">Fixed-Fixed</option>
+                        <option value="propped">Propped Cantilever</option>
+                    </select>
+                </div>
 
                 <div class="section-header">Material Properties</div>
                 <div class="form-row">
@@ -157,6 +166,21 @@
                     <canvas id="beamCanvas"></canvas>
                     <div style="text-align: center; margin-top: 10px; font-size: 0.85rem; color: var(--text-muted);">
                         Diagram represents Uniformly Distributed Loads (Factored)
+                    </div>
+                </div>
+
+                <!-- Shear and Moment Diagrams -->
+                <div class="card">
+                    <h3 style="margin-bottom: 1rem;">Shear & Moment Diagrams</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <canvas id="shearCanvas" style="height: 200px;"></canvas>
+                            <div style="text-align: center; font-size: 0.8rem; color: var(--text-muted);">Shear Force (kN)</div>
+                        </div>
+                        <div>
+                            <canvas id="momentCanvas" style="height: 200px;"></canvas>
+                            <div style="text-align: center; font-size: 0.8rem; color: var(--text-muted);">Bending Moment (kNm)</div>
+                        </div>
                     </div>
                 </div>
 
@@ -255,12 +279,56 @@
             // Total Dead
             const w_d = w_sw + w_sdl;
 
-            // Factored Load (1.2D + 1.6L)
-            const w_u = (1.2 * w_d) + (1.6 * w_l);
+            // Load Combinations (ACI 318-11)
+            const wu1 = 1.4 * w_d;
+            const wu2 = 1.2 * w_d + 1.6 * w_l;
+            const w_u = Math.max(wu1, wu2);
+            const governingCombo = wu1 > wu2 ? "1.4D" : "1.2D + 1.6L";
 
-            // Forces
-            const m_u = (w_u * Math.pow(L, 2)) / 8;
-            const v_u = (w_u * L) / 2;
+            // Forces based on condition
+            const condition = document.getElementById('supportCondition').value;
+            let m_u, v_u;
+            let m_formula, v_formula;
+            let conditionLabel;
+            let r1, r2; // Reactions
+
+            switch(condition) {
+                case 'cantilever':
+                    m_u = (w_u * Math.pow(L, 2)) / 2;
+                    v_u = w_u * L;
+                    m_formula = "\\frac{w_u L^2}{2}";
+                    v_formula = "w_u L";
+                    conditionLabel = "Cantilever";
+                    r1 = w_u * L;
+                    r2 = 0;
+                    break;
+                case 'fixed':
+                    m_u = (w_u * Math.pow(L, 2)) / 12;
+                    v_u = (w_u * L) / 2;
+                    m_formula = "\\frac{w_u L^2}{12}";
+                    v_formula = "\\frac{w_u L}{2}";
+                    conditionLabel = "Fixed-Fixed";
+                    r1 = (w_u * L) / 2;
+                    r2 = (w_u * L) / 2;
+                    break;
+                case 'propped':
+                    m_u = (w_u * Math.pow(L, 2)) / 8;
+                    v_u = 0.625 * w_u * L;
+                    m_formula = "\\frac{w_u L^2}{8}";
+                    v_formula = "0.625 w_u L";
+                    conditionLabel = "Propped Cantilever";
+                    r1 = 0.625 * w_u * L;
+                    r2 = 0.375 * w_u * L;
+                    break;
+                default: // simple
+                    m_u = (w_u * Math.pow(L, 2)) / 8;
+                    v_u = (w_u * L) / 2;
+                    m_formula = "\\frac{w_u L^2}{8}";
+                    v_formula = "\\frac{w_u L}{2}";
+                    conditionLabel = "Simply Supported";
+                    r1 = (w_u * L) / 2;
+                    r2 = (w_u * L) / 2;
+            }
 
             // 4. Bar Fitting Feasibility Check (Approximate)
             // Estimate required steel area assuming a standard under-reinforced section
@@ -318,19 +386,22 @@
             `;
 
             document.getElementById('res_step3').innerHTML = `
-                <strong>3. Factored Design Load ($w_u$)</strong><br>
-                Using ACI 318 Factors ($1.2D + 1.6L$):
-                $$ w_u = 1.2(w_D) + 1.6(w_L) $$
-                $$ w_u = 1.2(${w_d.toFixed(2)}) + 1.6(${w_l.toFixed(2)}) $$
-                $$ w_u = \\mathbf{${w_u.toFixed(2)}} \\, \\text{kN/m} $$
+                <strong>3. Factored Design Load ($w_u$) & Combinations</strong><br>
+                ACI 318 Combinations:<br>
+                1. $1.4D = 1.4(${w_d.toFixed(2)}) = ${wu1.toFixed(2)} \\text{ kN/m}$<br>
+                2. $1.2D + 1.6L = 1.2(${w_d.toFixed(2)}) + 1.6(${w_l.toFixed(2)}) = ${wu2.toFixed(2)} \\text{ kN/m}$<br>
+                Governing: $\\mathbf{${w_u.toFixed(2)} \\text{ kN/m}}$ (Combo: ${governingCombo})
             `;
 
             document.getElementById('res_step4').innerHTML = `
-                <strong>4. Design Forces (Simple Span)</strong><br>
+                <strong>4. Design Forces (${conditionLabel})</strong><br>
                 Ultimate Moment ($M_u$):
-                $$ M_u = \\frac{w_u L^2}{8} = \\frac{${w_u.toFixed(2)} \\times ${L}^2}{8} = \\mathbf{${m_u.toFixed(2)}} \\, \\text{kN}\\cdot\\text{m} $$
+                $$ M_u = ${m_formula} = \\mathbf{${m_u.toFixed(2)}} \\, \\text{kN}\\cdot\\text{m} $$
                 Ultimate Shear ($V_u$):
-                $$ V_u = \\frac{w_u L}{2} = \\mathbf{${v_u.toFixed(2)}} \\, \\text{kN} $$
+                $$ V_u = ${v_formula} = \\mathbf{${v_u.toFixed(2)}} \\, \\text{kN} $$
+                Support Reactions:<br>
+                $R_1 = \\mathbf{${r1.toFixed(2)}} \\, \\text{kN}$ (Left)<br>
+                $R_2 = \\mathbf{${r2.toFixed(2)}} \\, \\text{kN}$ (Right)
             `;
 
             document.getElementById('checkResultContent').innerHTML = `
@@ -349,6 +420,28 @@
 
             // Draw Visualization
             drawVisualization(L, w_u, null);
+
+            // Generate Diagram Values
+            const steps = 100;
+            const shearValues = [];
+            const momentValues = [];
+            for (let i = 0; i <= steps; i++) {
+                const x = (i / steps) * L;
+                let v, m;
+                // General equations using reactions and fixed end moments
+                const m_fixed = (condition === 'cantilever') ? (w_u * L * L / 2) : 
+                                (condition === 'fixed') ? (w_u * L * L / 12) :
+                                (condition === 'propped') ? (w_u * L * L / 8) : 0;
+                
+                v = r1 - w_u * x;
+                m = r1 * x - (w_u * x * x / 2) - m_fixed;
+                
+                shearValues.push(v);
+                momentValues.push(m);
+            }
+
+            drawDiagram('shearCanvas', L, shearValues, '#3b82f6');
+            drawDiagram('momentCanvas', L, momentValues, '#10b981');
         }
 
         function showAlert(msg, type) {
@@ -364,6 +457,12 @@
 
         // Canvas Drawing Logic
         function drawVisualization(L, loadVal, msg) {
+            // Sync canvas resolution with display size to prevent distortion
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0) return;
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const w = canvas.width;
@@ -378,12 +477,12 @@
             }
 
             // Margins
-            const mx = 50;
-            const my = 100;
+            const mx = 60;
             
             // Scale
             const drawL = w - (2 * mx);
-            const beamY = h / 2 + 20;
+            // Position beam to leave room for load arrows above and labels below
+            const beamY = h * 0.6; 
             const beamH = 20;
 
             // Draw Beam
@@ -394,8 +493,19 @@
             ctx.strokeRect(mx, beamY, drawL, beamH);
 
             // Draw Supports
-            drawSupport(mx, beamY + beamH, 'pin');
-            drawSupport(mx + drawL, beamY + beamH, 'roller');
+            const condition = document.getElementById('supportCondition').value;
+            if (condition === 'cantilever') {
+                drawSupport(mx, beamY + beamH/2, 'fixed', 'left');
+            } else if (condition === 'fixed') {
+                drawSupport(mx, beamY + beamH/2, 'fixed', 'left');
+                drawSupport(mx + drawL, beamY + beamH/2, 'fixed', 'right');
+            } else if (condition === 'propped') {
+                drawSupport(mx, beamY + beamH/2, 'fixed', 'left');
+                drawSupport(mx + drawL, beamY + beamH, 'roller');
+            } else {
+                drawSupport(mx, beamY + beamH, 'pin');
+                drawSupport(mx + drawL, beamY + beamH, 'roller');
+            }
 
             // Draw Distributed Load
             const arrowSpacing = 20;
@@ -423,13 +533,103 @@
             ctx.fillText(`wu = ${loadVal.toFixed(2)} kN/m`, w/2, loadY - arrowHeight - 10);
             
             ctx.fillStyle = "#64748b";
-            ctx.fillText(`L = ${L} m`, w/2, beamY + beamH + 40);
+            ctx.fillText(`L = ${L} m`, w/2, beamY + beamH + 35);
         }
 
-        function drawSupport(x, y, type) {
+        function drawDiagram(canvasId, L, values, color) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width === 0) return;
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const mx = 40;
+            const my = 30;
+            const drawW = w - 2 * mx;
+            const drawH = h - 2 * my;
+            const baselineY = h / 2;
+
+            // Find max absolute value for scaling
+            const maxVal = Math.max(...values.map(Math.abs));
+            const scaleY = maxVal === 0 ? 1 : (drawH / 2) / maxVal;
+
+            // Draw Baseline
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(mx, baselineY);
+            ctx.lineTo(mx + drawW, baselineY);
+            ctx.stroke();
+
+            // Draw Curve
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color + "22"; // Transparent fill
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(mx, baselineY - values[0] * scaleY);
+            
+            for (let i = 1; i < values.length; i++) {
+                const x = mx + (i / (values.length - 1)) * drawW;
+                const y = baselineY - values[i] * scaleY;
+                ctx.lineTo(x, y);
+            }
+            
+            // Close path for fill
+            ctx.lineTo(mx + drawW, baselineY);
+            ctx.lineTo(mx, baselineY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = "#0f172a";
+            ctx.font = "10px Inter";
+            ctx.textAlign = "center";
+            
+            // Start and End values
+            ctx.fillText(values[0].toFixed(1), mx, baselineY - values[0] * scaleY - 5);
+            ctx.fillText(values[values.length-1].toFixed(1), mx + drawW, baselineY - values[values.length-1] * scaleY - 5);
+
+            // Find peak value and its position
+            let peakVal = values[0];
+            let peakIdx = 0;
+            for (let i = 1; i < values.length; i++) {
+                if (Math.abs(values[i]) > Math.abs(peakVal)) {
+                    peakVal = values[i];
+                    peakIdx = i;
+                }
+            }
+            
+            if (peakIdx !== 0 && peakIdx !== values.length - 1) {
+                const px = mx + (peakIdx / (values.length - 1)) * drawW;
+                const py = baselineY - peakVal * scaleY;
+                ctx.fillText(peakVal.toFixed(1), px, py + (peakVal >= 0 ? -5 : 12));
+            }
+        }
+
+        function drawSupport(x, y, type, side) {
             ctx.beginPath();
             ctx.strokeStyle = "#0f172a";
             ctx.lineWidth = 2;
+
+            if (type === 'fixed') {
+                const h = 40;
+                ctx.moveTo(x, y - h/2);
+                ctx.lineTo(x, y + h/2);
+                ctx.stroke();
+                // Hatching
+                const sign = side === 'left' ? -1 : 1;
+                for (let i = -h/2; i <= h/2; i += 5) {
+                    ctx.moveTo(x, y + i);
+                    ctx.lineTo(x + sign * 5, y + i - 5);
+                }
+                ctx.stroke();
+                return;
+            }
             
             // Triangle
             ctx.moveTo(x, y);

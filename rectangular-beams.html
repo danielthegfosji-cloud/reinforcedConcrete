@@ -310,8 +310,8 @@
             </div>
             
             <div class="viz-container">
-                <div class="section-header">Beam Elevation</div>
-                <canvas id="elevationCanvas"></canvas>
+                <div class="section-header">Isometric View</div>
+                <canvas id="isoCanvas"></canvas>
             </div>
             
             <div class="section-header">Calculation Summary</div>
@@ -575,7 +575,7 @@
             const drawCompCount = (Mu > PhiMn_max_singly) ? barCountComp : 2;
             const drawCompSize = (Mu > PhiMn_max_singly) ? barSize : 12;
             drawSection(b, h, cover, stirrup, barCountTension, drawCompCount, barSize, drawCompSize, d_prime, d, tensionLayers, compLayers);
-            drawElevation(b, h, cover, stirrup, barCountTension, drawCompCount, barSize, drawCompSize, d, d_prime, tensionLayers, compLayers);
+            drawIsometric(b, h, cover, stirrup, barCountTension, drawCompCount, barSize, drawCompSize, d, d_prime, tensionLayers, compLayers);
             
             MathJax.typesetPromise();
         }
@@ -712,7 +712,7 @@
 
              // Draw
             drawSection(b, h, 40, 10, n_t, n_c, size_t, size_c, d_prime, d, tensionLayers, compLayers);
-            drawElevation(b, h, 40, 10, n_t, n_c, size_t, size_c, d, d_prime, tensionLayers, compLayers);
+            drawIsometric(b, h, 40, 10, n_t, n_c, size_t, size_c, d, d_prime, tensionLayers, compLayers);
             MathJax.typesetPromise();
         }
 
@@ -872,114 +872,98 @@
             }
         }
 
-        function drawElevation(b, h, cover, stirrup, n_tension, n_comp, barSizeT, barSizeC, d_val, d_prime_val, tensionLayers, compLayers) {
-            const canvas = document.getElementById('elevationCanvas');
+        function drawIsometric(b, h, cover, stirrup, n_tension, n_comp, barSizeT, barSizeC, d_val, d_prime_val, tensionLayers, compLayers) {
+            const canvas = document.getElementById('isoCanvas');
             const ctx = canvas.getContext('2d');
             const cw = canvas.width = canvas.offsetWidth;
             const ch = canvas.height = canvas.offsetHeight;
             ctx.clearRect(0, 0, cw, ch);
 
-            const padding = 80;
-            const availW = cw - 2*padding;
-            const availH = ch - 2*padding;
-            
-            // Assume a visual length of 1000mm for the elevation view
-            const L_visual = 1000;
-            const scale = Math.min(availW / L_visual, availH / h);
+            const viewL = 800; // Show 800mm of length
+            const scale = Math.min(cw / (viewL * 1.5), ch / (h * 2.5));
+            const ox = cw * 0.2, oy = ch * 0.5;
 
-            const drawL = L_visual * scale;
-            const drawH = h * scale;
-            const startX = (cw - drawL) / 2;
-            const startY = (ch - drawH) / 2;
+            function project(x, y, z) {
+                // x: length, y: width, z: height (z=0 is bottom)
+                return {
+                    px: ox + (x - y) * 0.866 * scale,
+                    py: oy + (x + y) * 0.5 * scale - z * scale
+                };
+            }
 
-            // 1. Concrete
-            ctx.fillStyle = '#e2e8f0';
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 2;
-            ctx.fillRect(startX, startY, drawL, drawH);
-            ctx.strokeRect(startX, startY, drawL, drawH);
+            // Concrete Box (Wireframe)
+            ctx.strokeStyle = 'rgba(51, 65, 85, 0.2)';
+            ctx.lineWidth = 1;
+            const corners = [
+                [0, 0, 0], [viewL, 0, 0], [viewL, b, 0], [0, b, 0],
+                [0, 0, h], [viewL, 0, h], [viewL, b, h], [0, b, h]
+            ].map(p => project(...p));
 
-            // 2. Longitudinal Bars
-            const vScale = drawH / h;
-            const cBarY_base = startY + (cover * vScale);
+            // Bottom
+            ctx.beginPath(); ctx.moveTo(corners[0].px, corners[0].py);
+            ctx.lineTo(corners[1].px, corners[1].py); ctx.lineTo(corners[2].px, corners[2].py);
+            ctx.lineTo(corners[3].px, corners[3].py); ctx.closePath(); ctx.stroke();
+            // Top
+            ctx.beginPath(); ctx.moveTo(corners[4].px, corners[4].py);
+            ctx.lineTo(corners[5].px, corners[5].py); ctx.lineTo(corners[6].px, corners[6].py);
+            ctx.lineTo(corners[7].px, corners[7].py); ctx.closePath(); ctx.stroke();
+            // Verticals
+            for(let i=0; i<4; i++) {
+                ctx.beginPath(); ctx.moveTo(corners[i].px, corners[i].py);
+                ctx.lineTo(corners[i+4].px, corners[i+4].py); ctx.stroke();
+            }
 
+            // Stirrups
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1;
+            const s_off = cover;
+            const s_spacing = 150; 
+            for (let x = 50; x < viewL; x += s_spacing) {
+                const s_corners = [
+                    [x, s_off, s_off], [x, b - s_off, s_off], 
+                    [x, b - s_off, h - s_off], [x, s_off, h - s_off]
+                ].map(p => project(...p));
+                ctx.beginPath();
+                ctx.moveTo(s_corners[0].px, s_corners[0].py);
+                s_corners.forEach(p => ctx.lineTo(p.px, p.py));
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            // Longitudinal Bars
             ctx.strokeStyle = '#1e293b';
-            ctx.lineWidth = 3;
             
             // Tension Bars
+            ctx.lineWidth = Math.max(1, (barSizeT * scale) / 2);
             if (tensionLayers && tensionLayers.length > 0) {
                 tensionLayers.forEach(layer => {
-                    const layerY = startY + (layer.y * vScale);
-                    ctx.beginPath();
-                    ctx.moveTo(startX + 10, layerY);
-                    ctx.lineTo(startX + drawL - 10, layerY);
-                    ctx.stroke();
+                    const z = h - layer.y;
+                    const spacing = layer.count > 1 ? (b - 2*cover - 2*stirrup - barSizeT) / (layer.count - 1) : 0;
+                    for(let i=0; i<layer.count; i++) {
+                        const y = (layer.count === 1) ? b/2 : (cover + stirrup + barSizeT/2 + i * spacing);
+                        const p1 = project(0, y, z);
+                        const p2 = project(viewL, y, z);
+                        ctx.beginPath(); ctx.moveTo(p1.px, p1.py); ctx.lineTo(p2.px, p2.py); ctx.stroke();
+                    }
                 });
-            } else {
-                const tBarY = startY + (d_val * vScale);
-                ctx.beginPath();
-                ctx.moveTo(startX + 10, tBarY);
-                ctx.lineTo(startX + drawL - 10, tBarY);
-                ctx.stroke();
             }
 
             // Compression Bars
-            if (compLayers && compLayers.length > 0 && n_comp > 0) {
-                compLayers.forEach(layer => {
-                    const layerY = startY + (layer.y * vScale);
-                    ctx.beginPath();
-                    ctx.moveTo(startX + 10, layerY);
-                    ctx.lineTo(startX + drawL - 10, layerY);
-                    ctx.stroke();
-                });
-            } else if (n_comp > 0) {
-                const cBarY = startY + (cover * vScale);
-                ctx.beginPath();
-                ctx.moveTo(startX + 10, cBarY);
-                ctx.lineTo(startX + drawL - 10, cBarY);
-                ctx.stroke();
-            }
-
-            // 3. Stirrups
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 1.5;
-            const s_spacing = 150 * scale; // Dummy spacing for visual
-            for(let x = startX + 30; x < startX + drawL - 20; x += s_spacing) {
-                ctx.beginPath();
-                ctx.moveTo(x, startY + 5);
-                ctx.lineTo(x, startY + drawH - 5);
-                ctx.stroke();
-            }
-
-            // Centroid Line
-            const d_y_px = startY + (d_val * vScale);
-            ctx.setLineDash([5, 5]);
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(startX - 10, d_y_px);
-            ctx.lineTo(startX + drawL + 10, d_y_px);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Centroid Line d'
             if (n_comp > 0) {
-                const dp_y_px = startY + (d_prime_val * vScale);
-                ctx.setLineDash([5, 5]);
-                ctx.strokeStyle = '#3b82f6';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(startX - 10, dp_y_px);
-                ctx.lineTo(startX + drawL + 10, dp_y_px);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.lineWidth = Math.max(1, (barSizeC * scale) / 2);
+                if (compLayers && compLayers.length > 0) {
+                    compLayers.forEach(layer => {
+                        const z = h - layer.y;
+                        const spacing = layer.count > 1 ? (b - 2*cover - 2*stirrup - barSizeC) / (layer.count - 1) : 0;
+                        for(let i=0; i<layer.count; i++) {
+                            const y = (layer.count === 1) ? b/2 : (cover + stirrup + barSizeC/2 + i * spacing);
+                            const p1 = project(0, y, z);
+                            const p2 = project(viewL, y, z);
+                            ctx.beginPath(); ctx.moveTo(p1.px, p1.py); ctx.lineTo(p2.px, p2.py); ctx.stroke();
+                        }
+                    });
+                }
             }
-
-            // Labels
-            ctx.fillStyle = '#64748b';
-            ctx.font = '12px Inter';
-            ctx.textAlign = 'center';
-            ctx.fillText(`Elevation View (Reinforcement Cage)`, cw/2, startY - 10);
         }
 
         function drawDim(ctx, x1, y1, x2, y2, text) {
