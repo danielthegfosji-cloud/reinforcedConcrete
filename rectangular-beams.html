@@ -18,6 +18,8 @@
     };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- Plotly.js for 3D Graphs -->
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
 
     <style>
         /* Layout Grid */
@@ -106,6 +108,44 @@
         .result-list li:last-child {
             border-bottom: none;
         }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 0.5rem;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
@@ -173,7 +213,10 @@
                     </select>
                 </div>
 
-                <button class="btn-calc" onclick="calculateDesign()">Design Beam</button>
+                <div style="display: flex; gap: 10px; margin-top: 1.5rem;">
+                    <button class="btn-calc" onclick="calculateDesign()" style="flex: 1; margin-top: 0;">Design Beam</button>
+                    <button class="btn-calc" onclick="openGraphModal()" style="flex: 1; margin-top: 0; background-color: #64748b;"><i class="fa-solid fa-chart-area"></i> Moment Capacity Surface
+                </div>
             </div>
 
             <!-- ANALYSIS FORM -->
@@ -279,6 +322,23 @@
         </div>
     </main>
 
+    <!-- Graph Modal -->
+    <div id="graphModal" class="modal">
+        <div class="modal-content" style="width: 90%; max-width: 1000px; height: 85vh;">
+            <div class="modal-header">
+                <h3 style="margin:0;">Moment Capacity Surface Analysis</h3>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button onclick="downloadSurfaceMarkdown()" class="btn-calc" style="margin:0; padding: 5px 12px; font-size: 0.85rem; background-color: #10b981; width: auto;"><i class="fa-solid fa-file-code"></i> Download Markdown KV</button>
+                    <button onclick="closeGraphModal()" class="close-btn">&times;</button>
+                </div>
+            </div>
+            <div id="plotContainer" style="flex: 1; width: 100%;"></div>
+            <div style="padding-top: 10px; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+                <i class="fa-solid fa-circle-info"></i> This surface shows $\phi M_n$ (kN-m) for varying tension ($A_s$) and compression ($A'_s$) steel areas based on current section geometry.
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Tab Switching Logic ---
         function switchTab(tab) {
@@ -338,146 +398,184 @@
 
             const Mu = Mu_kNm * 1e6; // Convert to N-mm
             const barProps = getBarProp(barSize);
-            
-            // 1. Calculate Effective Depth (d) assuming 1 layer
-            const d = h - cover - stirrup - (barProps.d / 2);
-            const d_prime = cover + stirrup + (barProps.d / 2);
-
-            // 2. Constants
             const beta1 = getBeta1(fc);
             const phi = 0.9; 
             const Es = 200000;
             const eps_u = 0.003;
-            
-            // 3. Limits for Singly Reinforced
-            // Tension controlled limit (epsilon_t = 0.005)
-            const c_max = (0.003 / (0.003 + 0.005)) * d;
-            const a_max = beta1 * c_max;
-            const As_max_tension = (0.85 * fc * a_max * b) / fy;
-            const Mn_max_singly = As_max_tension * fy * (d - a_max/2);
-            const PhiMn_max_singly = phi * Mn_max_singly;
+            const minSpacing = Math.max(25, barSize);
+            const clearWidth = b - 2*cover - 2*stirrup;
+            const n_max_per_layer = Math.floor((clearWidth + minSpacing) / (barSize + minSpacing));
+
+            let d = h - cover - stirrup - (barProps.d / 2);
+            let d_prime = cover + stirrup + (barProps.d / 2);
 
             let resultHTML = "";
-            let finalAs_tension = 0;
-            let finalAs_comp = 0;
             let barCountTension = 0;
             let barCountComp = 0;
+            let tensionLayers = [];
+            let compLayers = [];
+            let n_layers = 1;
+            let n_layers_comp = 1;
             let isDoubly = false;
+            let f_s_prime = 0;
+            let rho_max = 0;
+            let rho = 0;
+            let PhiMn_max_singly = 0;
 
-            // 4. Logic
-            if (Mu <= PhiMn_max_singly) {
-                // SINGLY REINFORCED
-                
-                // R = Mu / (phi * b * d^2)
-                const Rn = Mu / (phi * b * d * d);
-                const m = fy / (0.85 * fc);
-                
-                // rho = (1/m) * (1 - sqrt(1 - 2*m*Rn/fy))
-                let valInsideSqrt = 1 - (2 * m * Rn) / fy;
-                let rho = 0;
+            // Iterative loop for layers
+            for (let iter = 0; iter < 5; iter++) {
+                rho_max = (0.85 * beta1 * fc / fy) * (eps_u / (eps_u + 0.005));
+                const As_max_singly = rho_max * b * d;
+                const a_max = (As_max_singly * fy) / (0.85 * fc * b);
+                const Mn_max_singly = As_max_singly * fy * (d - a_max/2);
+                PhiMn_max_singly = phi * Mn_max_singly;
 
-                if (valInsideSqrt < 0) {
-                     // Theoretically shouldn't happen due to if check, but just in case
-                     isDoubly = true;
+                let As_total_req = 0;
+                if (Mu <= PhiMn_max_singly) {
+                    isDoubly = false;
+                    const Rn = Mu / (phi * b * d * d);
+                    const m = fy / (0.85 * fc);
+                    let valInsideSqrt = 1 - (2 * m * Rn) / fy;
+                    rho = (1/m) * (1 - Math.sqrt(Math.max(0, valInsideSqrt)));
+                    const rho_min = Math.max(0.25 * Math.sqrt(fc) / fy, 1.4 / fy);
+                    if (rho < rho_min) rho = rho_min;
+                    As_total_req = rho * b * d;
+                    barCountComp = 0;
                 } else {
-                    rho = (1/m) * (1 - Math.sqrt(valInsideSqrt));
-                
-                    // Min Steel Check
-                    const rho_min1 = 0.25 * Math.sqrt(fc) / fy;
-                    const rho_min2 = 1.4 / fy;
-                    const rho_min = Math.max(rho_min1, rho_min2);
-
-                    if (rho < rho_min) {
-                        rho = rho_min;
-                        resultHTML += `<div class="alert-box alert-warning"><i class="fa-solid fa-triangle-exclamation"></i> Min. reinforcement ratio governs ($\rho_{min} = ${rho_min.toFixed(4)}$).</div>`;
-                    }
-
-                    finalAs_tension = rho * b * d;
-                    barCountTension = Math.ceil(finalAs_tension / barProps.area);
-                    
-                    // Singly reinforced beams need hanger bars for stirrups
-                    barCountComp = 0; // Calculated comp steel is 0
-                    resultHTML += `<h3>Design Results: Singly Reinforced</h3>`;
+                    isDoubly = true;
+                    const M_u1 = PhiMn_max_singly;
+                    const As1 = As_max_singly;
+                    const M_u2 = Mu - M_u1;
+                    const c_max = (eps_u / (eps_u + 0.005)) * d;
+                    const eps_prime_s = eps_u * (c_max - d_prime) / c_max;
+                    f_s_prime = Math.min(Es * eps_prime_s, fy);
+                    const As_prime = M_u2 / (phi * (f_s_prime - 0.85*fc) * (d - d_prime));
+                    const As2 = As_prime * (f_s_prime - 0.85*fc) / fy;
+                    As_total_req = As1 + As2;
+                    barCountComp = Math.max(2, Math.ceil(As_prime / barProps.area));
                 }
 
-            } 
-            
-            if (Mu > PhiMn_max_singly || isDoubly) {
+                barCountTension = Math.ceil(As_total_req / barProps.area);
+                const new_n_layers = Math.ceil(barCountTension / n_max_per_layer);
+                
+                let sum_yi_ni = 0;
+                let temp_tensionLayers = [];
+                let remainingBars = barCountTension;
+                for (let i = 0; i < new_n_layers; i++) {
+                    const count = Math.min(remainingBars, n_max_per_layer);
+                    const yi = h - cover - stirrup - barProps.d/2 - i * (barProps.d + minSpacing);
+                    sum_yi_ni += count * yi;
+                    temp_tensionLayers.push({y: yi, count: count});
+                    remainingBars -= count;
+                }
+                const new_d = sum_yi_ni / barCountTension;
+
+                let new_d_prime = d_prime;
+                let new_n_layers_comp = n_layers_comp;
+                let temp_compLayers = [];
+                if (isDoubly) {
+                    new_n_layers_comp = Math.ceil(barCountComp / n_max_per_layer);
+                    let sum_yi_ni_comp = 0;
+                    let remainingBarsComp = barCountComp;
+                    for (let i = 0; i < new_n_layers_comp; i++) {
+                        const count = Math.min(remainingBarsComp, n_max_per_layer);
+                        const yi = cover + stirrup + barProps.d/2 + i * (barProps.d + minSpacing);
+                        sum_yi_ni_comp += count * yi;
+                        temp_compLayers.push({y: yi, count: count});
+                        remainingBarsComp -= count;
+                    }
+                    new_d_prime = sum_yi_ni_comp / barCountComp;
+                } else {
+                    new_n_layers_comp = 1;
+                    temp_compLayers = [{y: cover + stirrup + 12/2, count: 2}]; // Hangers
+                    new_d_prime = cover + stirrup + 12/2;
+                }
+
+                if (Math.abs(new_d - d) < 0.1 && Math.abs(new_d_prime - d_prime) < 0.1 && new_n_layers === n_layers && new_n_layers_comp === n_layers_comp) {
+                    tensionLayers = temp_tensionLayers;
+                    compLayers = temp_compLayers;
+                    d = new_d;
+                    d_prime = new_d_prime;
+                    n_layers = new_n_layers;
+                    n_layers_comp = new_n_layers_comp;
+                    break;
+                }
+                d = new_d;
+                d_prime = new_d_prime;
+                n_layers = new_n_layers;
+                n_layers_comp = new_n_layers_comp;
+                tensionLayers = temp_tensionLayers;
+                compLayers = temp_compLayers;
+            }
+
+            if (!isDoubly) {
+                // SINGLY REINFORCED
+                resultHTML += `<h3>Design Results: Singly Reinforced</h3>`;
+                
+                const As_provided = barCountTension * barProps.area;
+                resultHTML += `<ul class="result-list">`;
+                resultHTML += `<li><strong>Required $\rho$:</strong> ${rho.toFixed(4)} (Max allowed: ${rho_max.toFixed(4)})</li>`;
+                resultHTML += `<li><strong>Tension Steel ($A_s$):</strong> ${barCountTension} - $${barSize} \\text{ mm}$ (${As_provided.toFixed(0)} mm²)</li>`;
+                resultHTML += `<li><strong>Compression/Hanger Bars:</strong> 2 - ϕ12 <br><small>(Recommended for stirrup support)</small></li>`;
+                resultHTML += `</ul>`;
+
+            } else {
                 // DOUBLY REINFORCED
-                isDoubly = true;
-                
-                const M_u1 = PhiMn_max_singly;
-                const As1 = As_max_tension;
-                const M_u2 = Mu - M_u1;
-                
-                // Stress in compression steel
-                const eps_prime_s = eps_u * (c_max - d_prime) / c_max;
-                const f_s_prime = Math.min(Es * eps_prime_s, fy);
-                
-                // Required compression steel area
-                const As_prime = M_u2 / (phi * (f_s_prime - 0.85*fc) * (d - d_prime));
-                
-                // Additional tension steel
-                const As2 = As_prime * (f_s_prime - 0.85*fc) / fy;
-                
-                const As_total = As1 + As2;
-
-                barCountTension = Math.ceil(As_total / barProps.area);
-                // Correct for Minimum Hanger Bars: Need at least 2 bars for corners
-                barCountComp = Math.max(2, Math.ceil(As_prime / barProps.area));
-
                 resultHTML += `<h3>Design Results: Doubly Reinforced</h3>`;
-                alertArea.innerHTML += `<div class="alert-box alert-warning"><i class="fa-solid fa-info-circle"></i> Section exceeds max tension-controlled capacity. Compression reinforcement added.</div>`;
+                alertArea.innerHTML += `<div class="alert-box alert-warning"><i class="fa-solid fa-info-circle"></i> Required moment exceeds singly reinforced limit ($\rho > \rho_{max} = ${rho_max.toFixed(4)}$). Compression reinforcement added.</div>`;
                 
                 resultHTML += `<ul class="result-list">`;
                 resultHTML += `<li><strong>Tension Steel:</strong> ${barCountTension} - ϕ${barSize} (${(barCountTension*barProps.area).toFixed(0)} mm²)</li>`;
                 resultHTML += `<li><strong>Compression Steel:</strong> ${barCountComp} - ϕ${barSize} (${(barCountComp*barProps.area).toFixed(0)} mm²) <br><small>(Minimum 2 bars enforced for stirrup support)</small></li>`;
                 resultHTML += `<li><strong>Compression Stress ($f'_s$):</strong> ${f_s_prime.toFixed(1)} MPa</li>`;
                 resultHTML += `</ul>`;
-                
-                finalAs_tension = barCountTension * barProps.area;
-                finalAs_comp = barCountComp * barProps.area;
+            }
+
+            if (n_layers > 1 || n_layers_comp > 1) {
+                let layerMsg = "Bars placed in multiple layers. ";
+                if (n_layers > 1) layerMsg += `Tension: ${n_layers} layers (d=${d.toFixed(1)}mm). `;
+                if (n_layers_comp > 1) layerMsg += `Compression: ${n_layers_comp} layers (d'=${d_prime.toFixed(1)}mm).`;
+                resultHTML += `<p class="text-info"><i class="fa-solid fa-layer-group"></i> <strong>Multi-layer Design:</strong> ${layerMsg}</p>`;
+            }
+
+            let tensionScheduleHTML = "";
+            tensionLayers.forEach((layer, idx) => {
+                const dist = layer.y - d;
+                tensionScheduleHTML += `<tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:5px; font-weight:600;">Tension Layer ${idx + 1}</td>
+                    <td style="padding:5px;">${layer.count} - ϕ${barSize} (Dist to $d$: ${dist > 0 ? '+' : ''}${dist.toFixed(1)} mm)</td>
+                </tr>`;
+            });
+
+            let compScheduleHTML = "";
+            if (isDoubly) {
+                compLayers.forEach((layer, idx) => {
+                    const dist = layer.y - d_prime;
+                    compScheduleHTML += `<tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:5px; font-weight:600;">Compression Layer ${idx + 1}</td>
+                        <td style="padding:5px;">${layer.count} - ϕ${barSize} (Dist to $d'$: ${dist > 0 ? '+' : ''}${dist.toFixed(1)} mm)</td>
+                    </tr>`;
+                });
             } else {
-                // Finish Singly Reinforced Output
-                const As_provided = barCountTension * barProps.area;
-                resultHTML += `<ul class="result-list">`;
-                resultHTML += `<li><strong>Tension Steel ($A_s$):</strong> ${barCountTension} - $${barSize} \\text{ mm}$ (${As_provided.toFixed(0)} mm²)</li>`;
-                resultHTML += `<li><strong>Compression/Hanger Bars:</strong> 2 - ϕ12 <br><small>(Recommended for stirrup support)</small></li>`;
-                resultHTML += `</ul>`;
+                compScheduleHTML = `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Compression Bars</td><td style="padding:5px;">2 - ϕ12 (Hangers)</td></tr>`;
             }
 
             resultHTML += `<h4 style="margin-top:1.5rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
                 <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Tension Bars</td><td style="padding:5px;">${barCountTension} - ϕ${barSize}</td></tr>
-                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Compression Bars</td><td style="padding:5px;">${barCountComp > 0 ? barCountComp + ' - ϕ' + barSize : '2 - ϕ12 (Hangers)'}</td></tr>
+                    ${tensionScheduleHTML}
+                    ${compScheduleHTML}
                     <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
                     <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Steel $f_y$</td><td style="padding:5px;">${fy} MPa</td></tr>
                     <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Beam Size</td><td style="padding:5px;">${b} x ${h} mm</td></tr>
                 </table>`;
 
-            // 5. Spacing Check
-            const clearWidth = b - 2*cover - 2*stirrup;
-            const minSpacing = Math.max(25, barSize);
-            const availableSpace = clearWidth - (barCountTension * barSize);
-            
-            if (barCountTension > 1) {
-                const actualSpacing = availableSpace / (barCountTension - 1);
-                if (actualSpacing < minSpacing) {
-                    const maxBars = Math.floor((clearWidth + minSpacing) / (barSize + minSpacing));
-                    const layers = Math.ceil(barCountTension / maxBars);
-                    alertArea.innerHTML += `<div class="alert-box alert-danger"><i class="fa-solid fa-circle-xmark"></i> <strong>Spacing Violation:</strong> Bars cannot fit in one layer. Max bars per layer: ${maxBars}. Use ${layers} layers.</div>`;
-                } else {
-                    resultHTML += `<p class="text-success"><i class="fa-solid fa-check"></i> Clear Spacing: ${actualSpacing.toFixed(1)} mm (OK)</p>`;
-                }
-            }
-
             document.getElementById('result-output').innerHTML = resultHTML;
             
             // Draw (if singly, pass dummy comp bars 2-12mm for visual)
-            const drawCompCount = isDoubly ? barCountComp : 2;
-            const drawCompSize = isDoubly ? barSize : 12;
-            drawSection(b, h, cover, stirrup, barCountTension, drawCompCount, barSize, drawCompSize, d_prime, d);
-            drawElevation(b, h, cover, stirrup, barCountTension, drawCompCount, barSize, drawCompSize, d);
+            const drawCompCount = (Mu > PhiMn_max_singly) ? barCountComp : 2;
+            const drawCompSize = (Mu > PhiMn_max_singly) ? barSize : 12;
+            drawSection(b, h, cover, stirrup, barCountTension, drawCompCount, barSize, drawCompSize, d_prime, d, tensionLayers, compLayers);
+            drawElevation(b, h, cover, stirrup, barCountTension, drawCompCount, barSize, drawCompSize, d, d_prime, tensionLayers, compLayers);
             
             MathJax.typesetPromise();
         }
@@ -500,11 +598,37 @@
             const n_c = parseFloat(document.getElementById('a_nb_c').value);
             const size_c = parseInt(document.getElementById('a_size_c').value);
 
-            const As = n_t * getBarProp(size_t).area;
-            const As_prime = n_c * getBarProp(size_c).area;
+            const barPropsT = getBarProp(size_t);
+            const barPropsC = getBarProp(size_c);
+            const As = n_t * barPropsT.area;
+            const As_prime = n_c * barPropsC.area;
             const beta1 = getBeta1(fc);
             const Es = 200000;
             const eps_u = 0.003;
+
+            // Layer logic for visualization in analysis mode
+            const minSpacing = Math.max(25, barPropsT.d, barPropsC.d);
+            const clearWidth = b - 2*40 - 2*10; // Assuming 40 cover, 10 stirrup for visual
+            const n_max_per_layer_t = Math.floor((clearWidth + minSpacing) / (barPropsT.d + minSpacing));
+            const n_max_per_layer_c = Math.floor((clearWidth + minSpacing) / (barPropsC.d + minSpacing));
+
+            let tensionLayers = [];
+            let remainingT = n_t;
+            for (let i = 0; i < Math.ceil(n_t / n_max_per_layer_t); i++) {
+                const count = Math.min(remainingT, n_max_per_layer_t);
+                const yi = h - 40 - 10 - barPropsT.d/2 - i * (barPropsT.d + minSpacing);
+                tensionLayers.push({y: yi, count: count});
+                remainingT -= count;
+            }
+
+            let compLayers = [];
+            let remainingC = n_c;
+            for (let i = 0; i < Math.ceil(n_c / n_max_per_layer_c); i++) {
+                const count = Math.min(remainingC, n_max_per_layer_c);
+                const yi = 40 + 10 + barPropsC.d/2 + i * (barPropsC.d + minSpacing);
+                compLayers.push({y: yi, count: count});
+                remainingC -= count;
+            }
 
             // Solve for c
             let c = 100; // seed
@@ -587,13 +711,13 @@
             document.getElementById('result-output').innerHTML = resultHTML;
 
              // Draw
-            drawSection(b, h, 40, 10, n_t, n_c, size_t, size_c, d_prime, d);
-            drawElevation(b, h, 40, 10, n_t, n_c, size_t, size_c, d);
+            drawSection(b, h, 40, 10, n_t, n_c, size_t, size_c, d_prime, d, tensionLayers, compLayers);
+            drawElevation(b, h, 40, 10, n_t, n_c, size_t, size_c, d, d_prime, tensionLayers, compLayers);
             MathJax.typesetPromise();
         }
 
         // --- DRAWING FUNCTION ---
-        function drawSection(b, h, cover, stirrup, n_tension, n_comp, barSizeT, barSizeC, d_prime_val, d_val) {
+        function drawSection(b, h, cover, stirrup, n_tension, n_comp, barSizeT, barSizeC, d_prime_val, d_val, tensionLayers, compLayers) {
             const canvas = document.getElementById('beamCanvas');
             const ctx = canvas.getContext('2d');
             const cw = canvas.width = canvas.offsetWidth;
@@ -601,7 +725,7 @@
 
             ctx.clearRect(0, 0, cw, ch);
             
-            const padding = 60;
+            const padding = 80;
             const availW = cw - 2*padding;
             const availH = ch - 2*padding;
             
@@ -633,24 +757,50 @@
             
             // Tension Bars
             const tBarRad = (barSizeT * scale) / 2;
-            const tensionY = startY + (d_val * scale);
             const innerStart = startX + s_off + (stirrup*scale) + tBarRad;
             const innerEnd = startX + drawW - s_off - (stirrup*scale) - tBarRad;
             const innerWidth = innerEnd - innerStart;
             
-            if (n_tension > 0) {
-                const spacing = n_tension > 1 ? innerWidth / (n_tension - 1) : 0;
-                for(let i=0; i<n_tension; i++) {
-                    let bx = (n_tension === 1) ? startX + drawW/2 : innerStart + (i * spacing);
-                    ctx.beginPath();
-                    ctx.arc(bx, tensionY, Math.max(2, tBarRad), 0, 2*Math.PI);
-                    ctx.fill();
+            if (tensionLayers && tensionLayers.length > 0) {
+                tensionLayers.forEach(layer => {
+                    const layerY = startY + (layer.y * scale);
+                    const spacing = layer.count > 1 ? innerWidth / (layer.count - 1) : 0;
+                    for(let i=0; i<layer.count; i++) {
+                        let bx = (layer.count === 1) ? startX + drawW/2 : innerStart + (i * spacing);
+                        ctx.beginPath();
+                        ctx.arc(bx, layerY, Math.max(2, tBarRad), 0, 2*Math.PI);
+                        ctx.fill();
+                    }
+                });
+            } else {
+                // Fallback for analysis mode or single layer
+                const tensionY = startY + (d_val * scale);
+                if (n_tension > 0) {
+                    const spacing = n_tension > 1 ? innerWidth / (n_tension - 1) : 0;
+                    for(let i=0; i<n_tension; i++) {
+                        let bx = (n_tension === 1) ? startX + drawW/2 : innerStart + (i * spacing);
+                        ctx.beginPath();
+                        ctx.arc(bx, tensionY, Math.max(2, tBarRad), 0, 2*Math.PI);
+                        ctx.fill();
+                    }
                 }
             }
 
             // Compression Bars
             const cBarRad = (barSizeC * scale) / 2;
-            if (n_comp > 0) {
+            if (compLayers && compLayers.length > 0 && n_comp > 0) {
+                compLayers.forEach(layer => {
+                    const layerY = startY + (layer.y * scale);
+                    const spacing = layer.count > 1 ? innerWidth / (layer.count - 1) : 0;
+                    for(let i=0; i<layer.count; i++) {
+                        let bx = (layer.count === 1) ? startX + drawW/2 : innerStart + (i * spacing);
+                        ctx.beginPath();
+                        ctx.arc(bx, layerY, Math.max(2, cBarRad), 0, 2*Math.PI);
+                        ctx.fill();
+                    }
+                });
+            } else if (n_comp > 0) {
+                // Fallback for analysis mode or single layer
                 const compY = startY + (d_prime_val * scale);
                 const spacingC = n_comp > 1 ? innerWidth / (n_comp - 1) : 0;
                 for(let i=0; i<n_comp; i++) {
@@ -665,9 +815,54 @@
             drawDim(ctx, startX - 20, startY, startX - 20, startY + drawH, `h=${h}`);
             drawDim(ctx, startX, startY - 20, startX + drawW, startY - 20, `b=${b}`);
             
-            // d dimension
-            drawDim(ctx, startX + drawW + 20, startY, startX + drawW + 20, tensionY, `d=${d_val.toFixed(0)}`);
+            // d dimension (Centroid)
+            const d_y_px = startY + (d_val * scale);
+            drawDim(ctx, startX + drawW + 20, startY, startX + drawW + 20, d_y_px, `d=${d_val.toFixed(1)}`);
             
+            // Centroid Line
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.moveTo(startX, d_y_px);
+            ctx.lineTo(startX + drawW + 40, d_y_px);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Layer distances from d
+            if (tensionLayers && tensionLayers.length > 0) {
+                tensionLayers.forEach((layer, idx) => {
+                    const layerY_px = startY + (layer.y * scale);
+                    const dist = layer.y - d_val;
+                    // Draw small dimension from d line to layer
+                    drawDim(ctx, startX + drawW + 40 + (idx * 25), d_y_px, startX + drawW + 40 + (idx * 25), layerY_px, `${dist > 0 ? '+' : ''}${dist.toFixed(1)}`);
+                });
+            }
+
+            // d' dimension (Centroid)
+            if (n_comp > 0) {
+                const dp_y_px = startY + (d_prime_val * scale);
+                drawDim(ctx, startX + drawW + 20, startY, startX + drawW + 20, dp_y_px, `d'=${d_prime_val.toFixed(1)}`);
+                
+                // Centroid Line for d'
+                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = '#3b82f6';
+                ctx.beginPath();
+                ctx.moveTo(startX, dp_y_px);
+                ctx.lineTo(startX + drawW + 40, dp_y_px);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Layer distances from d'
+            if (compLayers && compLayers.length > 0 && n_comp > 0) {
+                compLayers.forEach((layer, idx) => {
+                    const layerY_px = startY + (layer.y * scale);
+                    const dist = layer.y - d_prime_val;
+                    // Draw small dimension from d' line to layer (Offset to the left)
+                    drawDim(ctx, startX - 40 - (idx * 25), startY + (d_prime_val * scale), startX - 40 - (idx * 25), layerY_px, `${dist > 0 ? '+' : ''}${dist.toFixed(1)}`);
+                });
+            }
+
             ctx.fillStyle = '#000';
             ctx.font = '14px Inter';
             ctx.textAlign = 'center';
@@ -677,17 +872,24 @@
             }
         }
 
-        function drawElevation(b, h, cover, stirrup, n_tension, n_comp, barSizeT, barSizeC, d_val) {
+        function drawElevation(b, h, cover, stirrup, n_tension, n_comp, barSizeT, barSizeC, d_val, d_prime_val, tensionLayers, compLayers) {
             const canvas = document.getElementById('elevationCanvas');
             const ctx = canvas.getContext('2d');
             const cw = canvas.width = canvas.offsetWidth;
             const ch = canvas.height = canvas.offsetHeight;
             ctx.clearRect(0, 0, cw, ch);
 
-            const padding = 40;
-            const drawL = cw - 2*padding;
-            const drawH = h * (drawL / 1000); // Scale height relative to width for visual
-            const startX = padding;
+            const padding = 80;
+            const availW = cw - 2*padding;
+            const availH = ch - 2*padding;
+            
+            // Assume a visual length of 1000mm for the elevation view
+            const L_visual = 1000;
+            const scale = Math.min(availW / L_visual, availH / h);
+
+            const drawL = L_visual * scale;
+            const drawH = h * scale;
+            const startX = (cw - drawL) / 2;
             const startY = (ch - drawH) / 2;
 
             // 1. Concrete
@@ -698,21 +900,40 @@
             ctx.strokeRect(startX, startY, drawL, drawH);
 
             // 2. Longitudinal Bars
-            const scale = drawL / 1000;
-            const tBarY = startY + (d_val * (drawH / h));
-            const cBarY = startY + (cover * (drawH / h));
+            const vScale = drawH / h;
+            const cBarY_base = startY + (cover * vScale);
 
             ctx.strokeStyle = '#1e293b';
             ctx.lineWidth = 3;
             
             // Tension Bars
-            ctx.beginPath();
-            ctx.moveTo(startX + 10, tBarY);
-            ctx.lineTo(startX + drawL - 10, tBarY);
-            ctx.stroke();
+            if (tensionLayers && tensionLayers.length > 0) {
+                tensionLayers.forEach(layer => {
+                    const layerY = startY + (layer.y * vScale);
+                    ctx.beginPath();
+                    ctx.moveTo(startX + 10, layerY);
+                    ctx.lineTo(startX + drawL - 10, layerY);
+                    ctx.stroke();
+                });
+            } else {
+                const tBarY = startY + (d_val * vScale);
+                ctx.beginPath();
+                ctx.moveTo(startX + 10, tBarY);
+                ctx.lineTo(startX + drawL - 10, tBarY);
+                ctx.stroke();
+            }
 
             // Compression Bars
-            if (n_comp > 0) {
+            if (compLayers && compLayers.length > 0 && n_comp > 0) {
+                compLayers.forEach(layer => {
+                    const layerY = startY + (layer.y * vScale);
+                    ctx.beginPath();
+                    ctx.moveTo(startX + 10, layerY);
+                    ctx.lineTo(startX + drawL - 10, layerY);
+                    ctx.stroke();
+                });
+            } else if (n_comp > 0) {
+                const cBarY = startY + (cover * vScale);
                 ctx.beginPath();
                 ctx.moveTo(startX + 10, cBarY);
                 ctx.lineTo(startX + drawL - 10, cBarY);
@@ -728,6 +949,30 @@
                 ctx.moveTo(x, startY + 5);
                 ctx.lineTo(x, startY + drawH - 5);
                 ctx.stroke();
+            }
+
+            // Centroid Line
+            const d_y_px = startY + (d_val * vScale);
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(startX - 10, d_y_px);
+            ctx.lineTo(startX + drawL + 10, d_y_px);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Centroid Line d'
+            if (n_comp > 0) {
+                const dp_y_px = startY + (d_prime_val * vScale);
+                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(startX - 10, dp_y_px);
+                ctx.lineTo(startX + drawL + 10, dp_y_px);
+                ctx.stroke();
+                ctx.setLineDash([]);
             }
 
             // Labels
@@ -770,6 +1015,205 @@
             const canvas = document.getElementById('beamCanvas');
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // --- GRAPH MODAL LOGIC ---
+        function openGraphModal() {
+            document.getElementById('graphModal').style.display = 'flex';
+            renderSurfacePlot();
+        }
+
+        function closeGraphModal() {
+            document.getElementById('graphModal').style.display = 'none';
+        }
+
+        function renderSurfacePlot() {
+            // Get current geometry from Design Form
+            const fc = parseFloat(document.getElementById('d_fc').value);
+            const fy = parseFloat(document.getElementById('d_fy').value);
+            const b = parseFloat(document.getElementById('d_b').value);
+            const h = parseFloat(document.getElementById('d_h').value);
+            const cover = parseFloat(document.getElementById('d_cc').value);
+            const stirrup = parseFloat(document.getElementById('d_stirrup').value);
+            const barSize = parseInt(document.getElementById('d_barSize').value);
+            
+            const barProps = getBarProp(barSize);
+            const d = h - cover - stirrup - (barProps.d / 2);
+            const d_prime = cover + stirrup + (barProps.d / 2);
+            const beta1 = getBeta1(fc);
+            const Es = 200000;
+            const eps_u = 0.003;
+
+            const rho_min = Math.max(0.25 * Math.sqrt(fc) / fy, 1.4 / fy);
+
+            const as_values = [];
+            const asp_values = [];
+            const z_values = []; 
+
+            const steps = 15;
+            const maxArea = 0.04 * b * d; // 4% reinforcement ratio as a reasonable upper bound
+            for (let i = 0; i <= steps; i++) {
+                const area = (i / steps) * maxArea;
+                as_values.push(area);
+                asp_values.push(area);
+            }
+
+            for (let j = 0; j < asp_values.length; j++) {
+                const row = [];
+                const As_prime = asp_values[j];
+                for (let i = 0; i < as_values.length; i++) {
+                    const As = as_values[i];
+                    const rho = As / (b * d);
+                    
+                    let c = d / 3; 
+                    for(let k=0; k<50; k++) {
+                        let eps_s_prime = eps_u * (c - d_prime) / c;
+                        let fs_prime = Math.min(Es * eps_s_prime, fy);
+                        if (eps_s_prime < 0) fs_prime = 0; 
+
+                        let a = beta1 * c;
+                        let Cc = 0.85 * fc * a * b;
+                        let Cs = As_prime * (fs_prime - 0.85*fc); 
+                        let eps_t = eps_u * (d - c) / c;
+                        let fs_t = Math.min(Es * eps_t, fy);
+                        let Tension = As * fs_t;
+
+                        let ForceDiff = Cc + Cs - Tension;
+                        if (Math.abs(ForceDiff) < 1) break;
+                        c = c - (ForceDiff / (0.85 * fc * b * beta1 + 1000)); 
+                    }
+
+                    let a = beta1 * c;
+                    let eps_t = eps_u * (d - c) / c;
+                    let eps_s_prime = eps_u * (c - d_prime) / c;
+                    let fs_prime = (eps_s_prime < 0) ? 0 : Math.min(Es * eps_s_prime, fy);
+                    
+                    let phi = 0.9;
+                    if (eps_t < 0.002) phi = 0.65;
+                    else if (eps_t < 0.005) phi = 0.65 + (eps_t - 0.002) * (250/3);
+
+                    let Cc = 0.85 * fc * a * b;
+                    let Cs = As_prime * (fs_prime - 0.85*fc);
+                    let Mn = Cc * (d - a/2) + Cs * (d - d_prime);
+                    
+                    if (rho < rho_min || eps_t < 0.004) {
+                        row.push(null);
+                    } else {
+                        row.push(Math.max(0, phi * Mn / 1e6)); 
+                    }
+                }
+                z_values.push(row);
+            }
+
+            const data = [{
+                z: z_values,
+                x: as_values,
+                y: asp_values,
+                type: 'surface',
+                colorscale: 'Viridis',
+                colorbar: { title: '\u03d5Mn (kN-m)', thickness: 20 }
+            }];
+
+            const layout = {
+                title: 'Moment Capacity Surface',
+                autosize: true,
+                scene: {
+                    xaxis: { title: 'As (mm\u00b2)' },
+                    yaxis: { title: "As' (mm\u00b2)" },
+                    zaxis: { title: '\u03d5Mn (kN-m)' }
+                },
+                margin: { l: 0, r: 0, b: 0, t: 40 }
+            };
+
+            Plotly.newPlot('plotContainer', data, layout);
+        }
+
+        function downloadSurfaceMarkdown() {
+            // Get current geometry from Design Form
+            const fc = parseFloat(document.getElementById('d_fc').value);
+            const fy = parseFloat(document.getElementById('d_fy').value);
+            const b = parseFloat(document.getElementById('d_b').value);
+            const h = parseFloat(document.getElementById('d_h').value);
+            const cover = parseFloat(document.getElementById('d_cc').value);
+            const stirrup = parseFloat(document.getElementById('d_stirrup').value);
+            const barSize = parseInt(document.getElementById('d_barSize').value);
+            
+            const barProps = getBarProp(barSize);
+            const d = h - cover - stirrup - (barProps.d / 2);
+            const d_prime = cover + stirrup + (barProps.d / 2);
+            const beta1 = getBeta1(fc);
+            const Es = 200000;
+            const eps_u = 0.003;
+            const rho_min = Math.max(0.25 * Math.sqrt(fc) / fy, 1.4 / fy);
+
+            let mdContent = "# Beam Design Moment Capacity Surface Data\n" +
+                            "Note for LLM: This dataset maps tension steel area (As) and compression steel area (As_prime) to the resulting design moment capacity (phiMn). Each point is explicitly labeled for precise comprehension. Points violating ACI 318 reinforcement limits (rho < rho_min or epsilon_t < 0.004) have been excluded.\n\n";
+
+            let pointCount = 1;
+
+            const steps = 15;
+            const as_values = [];
+            const asp_values = [];
+            const maxArea = 0.04 * b * d; // 4% reinforcement ratio as a reasonable upper bound
+            for (let i = 0; i <= steps; i++) {
+                const area = (i / steps) * maxArea;
+                as_values.push(area);
+                asp_values.push(area);
+            }
+
+            for (let j = 0; j < asp_values.length; j++) {
+                const As_prime = asp_values[j];
+                for (let i = 0; i < as_values.length; i++) {
+                    const As = as_values[i];
+                    const rho = As / (b * d);
+                    
+                    let c = d / 3; 
+                    for(let k=0; k<50; k++) {
+                        let eps_s_prime = eps_u * (c - d_prime) / c;
+                        let fs_prime = Math.min(Es * eps_s_prime, fy);
+                        if (eps_s_prime < 0) fs_prime = 0; 
+
+                        let a = beta1 * c;
+                        let Cc = 0.85 * fc * a * b;
+                        let Cs = As_prime * (fs_prime - 0.85*fc); 
+                        let eps_t = eps_u * (d - c) / c;
+                        let fs_t = Math.min(Es * eps_t, fy);
+                        let Tension = As * fs_t;
+
+                        let ForceDiff = Cc + Cs - Tension;
+                        if (Math.abs(ForceDiff) < 1) break;
+                        c = c - (ForceDiff / (0.85 * fc * b * beta1 + 1000)); 
+                    }
+
+                    let a = beta1 * c;
+                    let eps_t = eps_u * (d - c) / c;
+                    let eps_s_prime = eps_u * (c - d_prime) / c;
+                    let fs_prime = (eps_s_prime < 0) ? 0 : Math.min(Es * eps_s_prime, fy);
+                    
+                    let phi = 0.9;
+                    if (eps_t < 0.002) phi = 0.65;
+                    else if (eps_t < 0.005) phi = 0.65 + (eps_t - 0.002) * (250/3);
+
+                    let Cc = 0.85 * fc * a * b;
+                    let Cs = As_prime * (fs_prime - 0.85*fc);
+                    let Mn = Cc * (d - a/2) + Cs * (d - d_prime);
+                    let phiMn = Math.max(0, phi * Mn / 1e6);
+                    
+                    if (rho >= rho_min && eps_t >= 0.004) {
+                        mdContent += `- Point ${pointCount++}: {As_mm2: ${As.toFixed(2)}, As_prime_mm2: ${As_prime.toFixed(2)}, phiMn_kNm: ${phiMn.toFixed(4)}}\n`;
+                    }
+                }
+            }
+
+            const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "beam_surface_data.md");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     </script>
 </body>

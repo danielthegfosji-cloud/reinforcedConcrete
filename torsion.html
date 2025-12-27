@@ -634,9 +634,16 @@
             ctx.clearRect(0, 0, cw, ch);
 
             const padding = 40;
-            const drawL = cw - 2*padding;
-            const drawH = h * (drawL / 1200);
-            const startX = padding;
+            const availW = cw - 2*padding;
+            const availH = ch - 2*padding;
+            
+            // Assume a visual length of 1200mm for the elevation view
+            const L_visual = 1200;
+            const scale = Math.min(availW / L_visual, availH / h);
+
+            const drawL = L_visual * scale;
+            const drawH = h * scale;
+            const startX = (cw - drawL) / 2;
             const startY = (ch - drawH) / 2;
 
             // Concrete
@@ -649,8 +656,8 @@
             // Longitudinal Bars (Perimeter)
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 2;
-            const bY_top = startY + (cover * (drawH/h));
-            const bY_bot = startY + drawH - (cover * (drawH/h));
+            const bY_top = startY + (cover * scale);
+            const bY_bot = startY + drawH - (cover * scale);
             
             ctx.beginPath();
             ctx.moveTo(startX + 5, bY_top); ctx.lineTo(startX + drawL - 5, bY_top);
@@ -660,7 +667,7 @@
             // Stirrups (Closed for torsion)
             ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 1.5;
-            const s_px = spacing * (drawL / 1000);
+            const s_px = spacing * scale;
             let curX = startX + 20;
             while (curX < startX + drawL - 10) {
                 ctx.beginPath();
