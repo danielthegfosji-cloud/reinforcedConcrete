@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One-Way Slab Design | RC Design Suite</title>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- MathJax for Latex Rendering -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* Visualization Section */
+        .viz-container {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            min-height: 300px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .viz-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .viz-title { font-weight: 600; color: var(--text-main); }
+        
+        canvas {
+            max-width: 100%;
+            border: 1px dashed var(--border-color);
+            background-color: #fafafa;
+        }
+
+        .result-block {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px dashed var(--border-color);
+        }
+
+        .result-block:last-child { border-bottom: none; }
+
+        .result-header {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        .status-ok { background: #dcfce7; color: #166534; }
+        .status-warn { background: #fef3c7; color: #92400e; }
+        .status-fail { background: #fee2e2; color: #991b1b; }
+
+        .latex-output {
+            font-size: 1rem;
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        .check-item {
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            border-left: 4px solid var(--border-color);
+        }
+
+        .check-pass { border-left-color: var(--success); }
+        .check-fail { border-left-color: var(--error); }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Slab Properties</h2>
+
+        <form id="designForm" onsubmit="event.preventDefault(); calculateSlab();">
+            <div class="section-header">Material Properties</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" min="17" step="1" required>
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" min="200" step="10" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Concrete Density (kN/m³)</label>
+                <input type="number" id="wc" value="24" min="20" step="0.5">
+            </div>
+
+            <div class="section-header">Geometry</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Span $L$ (m)</label>
+                    <input type="number" id="span" value="4.5" min="1" step="0.1" required>
+                </div>
+                <div class="form-col">
+                    <label>Thickness $h$ (mm)</label>
+                    <input type="number" id="h" value="150" min="50" step="10" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Support Condition</label>
+                <select id="supportCondition">
+                    <option value="simple" selected>Simply Supported</option>
+                    <option value="one-end">One End Continuous</option>
+                    <option value="both-ends">Both Ends Continuous</option>
+                    <option value="cantilever">Cantilever</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Concrete Cover (mm)</label>
+                <input type="number" id="cover" value="20" min="10" step="5">
+            </div>
+
+            <div class="section-header">Loads (Unfactored)</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>SDL (kPa)</label>
+                    <input type="number" id="sdl" value="1.5" min="0" step="0.1">
+                </div>
+                <div class="form-col">
+                    <label>Live Load (kPa)</label>
+                    <input type="number" id="ll" value="3.0" min="0" step="0.1">
+                </div>
+            </div>
+
+            <div class="section-header">Reinforcement</div>
+            <div class="form-group">
+                <label>Preferred Bar Size</label>
+                <select id="barSize">
+                    <option value="10">Ø10 mm</option>
+                    <option value="12" selected>Ø12 mm</option>
+                    <option value="16">Ø16 mm</option>
+                    <option value="20">Ø20 mm</option>
+                    <option value="25">Ø25 mm</option>
+                </select>
+            </div>
+
+            <button type="submit" class="calc-btn">
+                <i class="fa-solid fa-calculator"></i> Calculate Design
+            </button>
+        </form>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-area">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>One-Way Slab Design</h1>
+            <p>Design continuous one-way slabs including temperature steel checks and ACI coefficient method for moments.</p>
+        </div>
+        
+        <!-- Visualization Panel -->
+        <div class="viz-container">
+            <div class="viz-header">
+                <span class="viz-title">Slab Cross-Section Detail (1m Strip)</span>
+                <span id="viz-status" class="status-badge status-ok">Ready</span>
+            </div>
+            <canvas id="slabCanvas" width="800" height="300"></canvas>
+            <div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-secondary);">
+                <i class="fa-solid fa-info-circle"></i> Showing 1000mm width design strip. Not to exact scale.
+            </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="card" id="resultsArea" style="display:none;">
+            
+            <!-- Analysis Block -->
+            <div class="result-block">
+                <div class="result-header">
+                    <i class="fa-solid fa-chart-line" style="color: var(--accent);"></i>
+                    Load & Moment Analysis (Per 1m Strip)
+                </div>
+                <div class="latex-output" id="res-analysis"></div>
+            </div>
+
+            <!-- Flexural Design Block -->
+            <div class="result-block">
+                <div class="result-header">
+                    <i class="fa-solid fa-layer-group" style="color: var(--accent);"></i>
+                    Flexural Design ($M_u$ Capacity)
+                </div>
+                <div class="latex-output" id="res-flexure"></div>
+                <div id="check-steel" class="check-item"></div>
+                <div id="check-spacing" class="check-item"></div>
+            </div>
+
+            <!-- Code Checks Block -->
+            <div class="result-block">
+                <div class="result-header">
+                    <i class="fa-solid fa-clipboard-check" style="color: var(--accent);"></i>
+                    ACI 318 / Code Checks
+                </div>
+                <div class="latex-output" id="res-shear"></div>
+                <div id="check-shear" class="check-item"></div>
+                <div id="check-min-h" class="check-item"></div>
+                <div id="check-shrinkage" class="check-item"></div>
+            </div>
+
+        </div>
+
+        <!-- Placeholder when no calculation done -->
+        <div id="placeholder" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+            <i class="fa-solid fa-arrow-left" style="margin-right: 10px;"></i> Enter parameters and click Calculate to see results.
+        </div>
+
+    </main>
+
+    <script>
+        function calculateSlab() {
+            // 1. Retrieve Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const wc = parseFloat(document.getElementById('wc').value);
+            const L_m = parseFloat(document.getElementById('span').value);
+            const h_mm = parseFloat(document.getElementById('h').value);
+            const cover = parseFloat(document.getElementById('cover').value);
+            const sdl_kpa = parseFloat(document.getElementById('sdl').value);
+            const ll_kpa = parseFloat(document.getElementById('ll').value);
+            const barSize = parseFloat(document.getElementById('barSize').value);
+
+            // Constants
+            const b = 1000; // Design strip width in mm
+            const L_mm = L_m * 1000;
+            const phi_flexure = 0.9;
+            const phi_shear = 0.75;
+            const beta1 = fc <= 28 ? 0.85 : Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7);
+
+            // Support Condition Logic (ACI 318-11 Table 9.5a & Moment Coeffs)
+            const support = document.getElementById('supportCondition').value;
+            let h_min_factor, m_coeff, supportLabel;
+
+            switch(support) {
+                case 'simple':
+                    h_min_factor = 20;
+                    m_coeff = 1/8;
+                    supportLabel = "Simply Supported";
+                    break;
+                case 'one-end':
+                    h_min_factor = 24;
+                    m_coeff = 1/14;
+                    supportLabel = "One End Continuous";
+                    break;
+                case 'both-ends':
+                    h_min_factor = 28;
+                    m_coeff = 1/16;
+                    supportLabel = "Both Ends Continuous";
+                    break;
+                case 'cantilever':
+                    h_min_factor = 10;
+                    m_coeff = 1/2;
+                    supportLabel = "Cantilever";
+                    break;
+            }
+
+            // 2. Load Calculations
+            // Self weight (SW) in kPa = kN/m³ * m
+            const sw_kpa = wc * (h_mm / 1000);
+            const dl_total = sw_kpa + sdl_kpa;
+            
+            // Factored Load (wu) in kPa (kN/m²) -> kN/m per 1m strip
+            const wu = 1.2 * dl_total + 1.6 * ll_kpa;
+            
+            // Moment (Mu) in kNm
+            const Mu = m_coeff * wu * Math.pow(L_m, 2);
+            const Mu_Nmm = Mu * 1e6; // Convert to N-mm
+
+            // Shear (Vu) at d distance
+            const d = h_mm - cover - (barSize / 2);
+            // Reaction at support
+            const Ru = (wu * L_m) / 2;
+            // Shear at d from support (kN)
+            const Vu_at_d = Ru - (wu * (d / 1000));
+            const Vu_N = Vu_at_d * 1000;
+
+            // 3. Flexural Design
+            // Required As calculation using quadratic formula derived from Mu = phi*As*fy*(d - a/2)
+            // a = As*fy / (0.85*fc*b)
+            // Combined: Mu = phi * As * fy * (d - 0.5 * (As*fy)/(0.85*fc*b))
+            // Rearranged: (0.5*phi*fy^2 / (0.85*fc*b)) * As^2 - (phi*fy*d) * As + Mu = 0
+            
+            const A_quad = (0.5 * phi_flexure * Math.pow(fy, 2)) / (0.85 * fc * b);
+            const B_quad = -1 * phi_flexure * fy * d;
+            const C_quad = Mu_Nmm;
+
+            // Quadratic solution (-B - sqrt(B^2 - 4AC)) / 2A  (Using minus for tension reinforcement)
+            let As_req = 0;
+            let calculationError = false;
+            
+            const discriminant = Math.pow(B_quad, 2) - 4 * A_quad * C_quad;
+            
+            if (discriminant < 0) {
+                calculationError = true; // Section too small for moment
+            } else {
+                As_req = (-B_quad - Math.sqrt(discriminant)) / (2 * A_quad);
+            }
+
+            // Min Steel (Temperature & Shrinkage) - ACI 318-11 7.12.2.1
+            let rho_temp = 0.0018;
+            if (fy < 420) rho_temp = 0.0020;
+            else if (fy > 420) rho_temp = (0.0018 * 420) / fy;
+            if (rho_temp < 0.0014) rho_temp = 0.0014;
+
+            const As_min = rho_temp * b * h_mm;
+            
+            const As_design = Math.max(As_req, As_min);
+
+            // 4. Bar Spacing
+            const area_bar = (Math.PI * Math.pow(barSize, 2)) / 4;
+            // s = (1000 * area_bar) / As_design
+            let s_calc = (1000 * area_bar) / As_design;
+            
+            // Code Spacing Limits (ACI 7.6.5)
+            // Lesser of 3h or 450mm
+            const s_code_max = Math.min(3 * h_mm, 450);
+            
+            // Final spacing (round down to nearest 10mm for practicality)
+            let s_final = Math.floor(Math.min(s_calc, s_code_max) / 10) * 10;
+            
+            // Sanity check: Minimum practical spacing (aggregate size + bar dia, approx 25mm + db)
+            const s_practical_min = 25 + barSize;
+            let spacingError = s_final < s_practical_min;
+
+            const As_provided = (1000 / s_final) * area_bar;
+
+            // 5. Shear Capacity Check
+            // Vc = 0.17 * lambda * sqrt(fc) * b * d (SI Units ACI Metric)
+            // lambda = 1.0 for normal weight
+            const Vc_N = 0.17 * 1.0 * Math.sqrt(fc) * b * d;
+            const phiVc = phi_shear * Vc_N;
+            const phiVc_kN = phiVc / 1000;
+
+            // 6. Minimum Thickness Check (ACI Table 9.5a)
+            const h_min_code = (L_m * 1000) / h_min_factor;
+
+            // --- RENDER RESULTS ---
+            document.getElementById('placeholder').style.display = 'none';
+            document.getElementById('resultsArea').style.display = 'block';
+
+            // HTML References
+            const resAnalysis = document.getElementById('res-analysis');
+            const resFlexure = document.getElementById('res-flexure');
+            const resShear = document.getElementById('res-shear');
+
+            // Latex Strings
+            resAnalysis.innerHTML = `
+                <p><strong>Support Condition:</strong> ${supportLabel}</p>
+                $$ w_{sw} = ${sw_kpa.toFixed(2)} \\text{ kPa}, \\quad w_u = 1.2(${dl_total.toFixed(2)}) + 1.6(${ll_kpa}) = ${wu.toFixed(2)} \\text{ kN/m} $$
+                $$ M_u = C_m w_u L^2 = ${m_coeff.toFixed(3)} \\cdot ${wu.toFixed(2)} \\cdot ${L_m}^2 = \\mathbf{${Mu.toFixed(2)} \\text{ kNm}} $$
+                $$ d = ${h_mm} - ${cover} - ${barSize}/2 = ${d.toFixed(1)} \\text{ mm} $$
+            `;
+
+            if(calculationError) {
+                resFlexure.innerHTML = `<span style="color:red">Error: Section depth is insufficient for the applied moment. Increase thickness ($h$) or concrete strength ($f'_c$).</span>`;
+                drawFailure();
+            } else {
+                resFlexure.innerHTML = `
+                    $$ A_{s,req} = ${As_req.toFixed(0)} \\text{ mm}^2/\\text{m} $$
+                    $$ A_{s,min} (T\\&S) = \\rho_{temp} \\cdot b \\cdot h = ${rho_temp.toFixed(4)} \\cdot 1000 \\cdot ${h_mm} = ${As_min.toFixed(0)} \\text{ mm}^2/\\text{m} $$
+                    $$ \\text{Governing } A_s = ${As_design.toFixed(0)} \\text{ mm}^2/\\text{m} $$
+                    $$ \\text{Use } \\mathbf{\\phi ${barSize} \\text{ @ } ${s_final} \\text{ mm c/c}} $$
+                    $$ A_{s,prov} = ${As_provided.toFixed(0)} \\text{ mm}^2/\\text{m} $$
+                `;
+
+                // Spacing Check UI
+                const checkSpacing = document.getElementById('check-spacing');
+                if (spacingError) {
+                    checkSpacing.className = 'check-item check-fail';
+                    checkSpacing.innerHTML = `<strong>Spacing Alert:</strong> Calculated spacing (${s_final}mm) is too tight for concrete placement. Increase bar size or thickness.`;
+                } else {
+                    checkSpacing.className = 'check-item check-pass';
+                    checkSpacing.innerHTML = `<strong>Spacing Check:</strong> ${s_final}mm $\\le$ Max Code Spacing (${s_code_max}mm). OK.`;
+                }
+
+                // Steel Check UI
+                const checkSteel = document.getElementById('check-steel');
+                // Rho check (max steel)
+                // rho_bal = 0.85 * beta1 * (fc/fy) * (600 / (600+fy))
+                const rho_bal = 0.85 * beta1 * (fc/fy) * (600/(600+fy));
+                const rho_max = 0.75 * rho_bal; // Roughly limit for tension controlled
+                const rho_act = As_provided / (b*d);
+                
+                if (rho_act > rho_max) {
+                    checkSteel.className = 'check-item check-fail';
+                    checkSteel.innerHTML = `<strong>Ductility Warning:</strong> Section is over-reinforced. $\\rho_{prov}$ (${rho_act.toFixed(4)}) > $\\rho_{max}$ (${rho_max.toFixed(4)}). Increase thickness.`;
+                } else {
+                    checkSteel.className = 'check-item check-pass';
+                    checkSteel.innerHTML = `<strong>Ductility Check:</strong> Section is tension-controlled ($\\rho < \\rho_{max}$). OK.`;
+                }
+
+                // Draw Visuals
+                drawSlab(h_mm, cover, barSize, s_final, d);
+            }
+
+            // Shear Results
+            resShear.innerHTML = `
+                $$ V_{u,d} = ${Vu_at_d.toFixed(2)} \\text{ kN} $$
+                $$ \\phi V_c = 0.75 \\cdot 0.17 \\sqrt{${fc}} \\cdot 1000 \\cdot ${d.toFixed(1)} = \\mathbf{${phiVc_kN.toFixed(2)} \\text{ kN}} $$
+            `;
+
+            const checkShear = document.getElementById('check-shear');
+            if(Vu_at_d > phiVc_kN) {
+                checkShear.className = 'check-item check-fail';
+                checkShear.innerHTML = `<strong>Shear Failure:</strong> $V_u > \\phi V_c$. Slabs typically do not use stirrups. Increase slab thickness ($h$).`;
+            } else {
+                checkShear.className = 'check-item check-pass';
+                checkShear.innerHTML = `<strong>Shear Capacity:</strong> $V_u \\le \\phi V_c$. No shear reinforcement required. OK.`;
+            }
+
+            const checkMinH = document.getElementById('check-min-h');
+            if(h_mm < h_min_code) {
+                checkMinH.className = 'check-item check-fail';
+                checkMinH.innerHTML = `<strong>Deflection Warning:</strong> $h$ (${h_mm}mm) < ACI Min Thickness $L/${h_min_factor}$ (${h_min_code.toFixed(0)}mm). Deflection calc required.`;
+            } else {
+                checkMinH.className = 'check-item check-pass';
+                checkMinH.innerHTML = `<strong>Thickness:</strong> $h$ meets ACI Table 9.5(a) minimum ($L/${h_min_factor}$). Deflection check likely not required.`;
+            }
+
+            const checkShrinkage = document.getElementById('check-shrinkage');
+            const s_temp_max = Math.min(5 * h_mm, 450);
+            const s_temp_final = Math.floor(Math.min((1000 * area_bar) / As_min, s_temp_max) / 10) * 10;
+            checkShrinkage.className = 'check-item check-pass';
+            checkShrinkage.innerHTML = `<strong>Temp & Shrinkage:</strong> Min $A_s = ${As_min.toFixed(0)}$ mm²/m. Provide at least Ø${barSize}@${s_temp_final}mm in transverse direction.`;
+
+                resShear.innerHTML += `
+                    <h4 style="margin-top:1.5rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
+                    <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                        <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Main Reinforcement</td><td style="padding:5px;">ϕ${barSize} @ ${s_final} mm c/c</td></tr>
+                        <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Transverse (T&S)</td><td style="padding:5px;">ϕ${barSize} @ ${s_temp_final} mm c/c</td></tr>
+                        <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Slab Thickness ($h$)</td><td style="padding:5px;">${h_mm} mm</td></tr>
+                        <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
+                    </table>
+                `;
+
+            // Refresh MathJax
+            MathJax.typesetPromise();
+        }
+
+        function drawSlab(h, cover, barSize, spacing, d) {
+            const canvas = document.getElementById('slabCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const paddingX = 120;
+            const paddingY = 60;
+
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+
+            // Scale calculations (Draw 1000mm width strip)
+            // We want to fit 1000mm width and h height into canvas
+            // Maintain Aspect Ratio somewhat, but exaggerate height if too thin
+            
+            const scaleX = (width - 2 * paddingX) / 1000;
+            // Exaggerate height for visibility
+            let scaleY = scaleX;
+            if(h * scaleY < 100) scaleY = 100 / h; 
+
+            const drawWidth = 1000 * scaleX;
+            const drawHeight = h * scaleY;
+            
+            const startX = paddingX;
+            const startY = (height - drawHeight) / 2;
+
+            // Draw Concrete Section
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, drawWidth, drawHeight);
+            ctx.strokeRect(startX, startY, drawWidth, drawHeight);
+
+            // Draw Bars
+            const barY = startY + drawHeight - (cover * scaleY) - (barSize/2 * scaleY);
+            // Calculate number of bars visible in 1m
+            const numBars = Math.floor(1000 / spacing);
+            // Center the bars visually
+            const totalBarWidth = (numBars - 1) * spacing * scaleX;
+            const firstBarX = startX + (drawWidth - totalBarWidth) / 2;
+
+            ctx.fillStyle = '#ef4444'; // Steel Color
+            
+            // Draw Main Bars
+            for(let i=0; i<numBars; i++) {
+                ctx.beginPath();
+                const cx = firstBarX + (i * spacing * scaleX);
+                // Draw simplified circle
+                const r = Math.max(3, (barSize/2) * scaleY); // Ensure visible
+                ctx.arc(cx, barY, r, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Draw Temperature Bars (Visual representation only, usually smaller, above main)
+            ctx.fillStyle = '#94a3b8';
+            for(let i=0; i<5; i++) {
+                 // Arbitrary spacing for visual
+                const tx = startX + (i * 250 * scaleX); 
+                const ty = startY + drawHeight - ((cover + barSize + 10) * scaleY);
+                ctx.beginPath();
+                ctx.arc(tx + 20, ty, 2, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Annotations
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+
+            // Dimension h
+            drawLine(ctx, startX - 15, startY, startX - 15, startY + drawHeight);
+            ctx.fillText(`h = ${h}mm`, startX - 60, startY + drawHeight/2);
+
+            // Dimension width
+            drawLine(ctx, startX, startY - 15, startX + drawWidth, startY - 15);
+            ctx.fillText('Design Strip = 1000mm', startX + drawWidth/2, startY - 25);
+
+            // Bar Callout
+            ctx.textAlign = 'left';
+            const calloutX = firstBarX + spacing * scaleX;
+            ctx.beginPath();
+            ctx.moveTo(calloutX, barY);
+            ctx.lineTo(calloutX + 20, barY + 30);
+            ctx.lineTo(calloutX + 100, barY + 30);
+            ctx.stroke();
+            ctx.fillText(`Ø${barSize}@${spacing}mm`, calloutX + 25, barY + 25);
+
+            // Cover Callout
+            ctx.textAlign = 'left';
+            ctx.beginPath();
+            ctx.moveTo(startX + drawWidth + 5, startY + drawHeight);
+            ctx.lineTo(startX + drawWidth + 25, startY + drawHeight);
+            ctx.moveTo(startX + drawWidth + 5, startY + drawHeight - (cover*scaleY));
+            ctx.lineTo(startX + drawWidth + 25, startY + drawHeight - (cover*scaleY));
+            ctx.stroke();
+            ctx.fillText(`Cover ${cover}mm`, startX + drawWidth + 30, startY + drawHeight - (cover*scaleY)/2 + 4);
+        }
+
+        function drawLine(ctx, x1, y1, x2, y2) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Ticks
+            // Vertical line ticks
+            if(x1 === x2) {
+                ctx.beginPath();
+                ctx.moveTo(x1-3, y1); ctx.lineTo(x1+3, y1);
+                ctx.moveTo(x2-3, y2); ctx.lineTo(x2+3, y2);
+                ctx.stroke();
+            }
+            // Horizontal line ticks
+            if(y1 === y2) {
+                ctx.beginPath();
+                ctx.moveTo(x1, y1-3); ctx.lineTo(x1, y1+3);
+                ctx.moveTo(x2, y2-3); ctx.lineTo(x2, y2+3);
+                ctx.stroke();
+            }
+        }
+
+        function drawFailure() {
+            const canvas = document.getElementById('slabCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#fee2e2';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 16px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText("Design Failed - Check Inputs", canvas.width/2, canvas.height/2);
+        }
+    </script>
+</body>
+</html>

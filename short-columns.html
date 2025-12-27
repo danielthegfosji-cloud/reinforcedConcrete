@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Short Column Analysis | RC Design Suite</title>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax for Latex Rendering -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* Visualization Area */
+        .viz-container {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 500px;
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Results Summary */
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .summary-header {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .result-item {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px dashed var(--border-color);
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .result-value {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-top: 0.25rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+
+        .status-ok { background: #dcfce7; color: #166534; }
+        .status-warn { background: #fef3c7; color: #92400e; }
+        .status-fail { background: #fee2e2; color: #991b1b; }
+
+        .calculation-step {
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 5px;
+            border-left: 3px solid var(--accent);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Column Properties</h2>
+            
+            <div class="section-header">Material Properties</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" min="10" step="1">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" min="200" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Geometry</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Width $b$ (mm)</label>
+                    <input type="number" id="width" value="400" min="200" step="50">
+                </div>
+                <div class="form-col">
+                    <label>Depth $h$ (mm)</label>
+                    <input type="number" id="depth" value="400" min="200" step="50">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Clear Height $L_u$ (m)</label>
+                    <input type="number" id="length" value="3.5" min="0.5" step="0.1">
+                </div>
+                <div class="form-col">
+                    <label>Factor $k$</label>
+                    <select id="k-factor">
+                        <option value="1.0" selected>Pinned (1.0)</option>
+                        <option value="0.5">Fixed (0.5)</option>
+                        <option value="0.7">F-P (0.7)</option>
+                        <option value="2.0">Cant. (2.0)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Frame Bracing</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="bracing" value="braced" checked> Braced</label>
+                    <label><input type="radio" name="bracing" value="unbraced"> Unbraced</label>
+                </div>
+            </div>
+
+            <div class="section-header">Reinforcement</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Bar Size (mm)</label>
+                    <select id="bar-dia">
+                        <option value="16">16 mm</option>
+                        <option value="20">20 mm</option>
+                        <option value="25" selected>25 mm</option>
+                        <option value="28">28 mm</option>
+                        <option value="32">32 mm</option>
+                    </select>
+                </div>
+                <div class="form-col">
+                    <label>Total Bars $n$</label>
+                    <input type="number" id="num-bars" value="8" min="4" step="2">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Tie Size (mm)</label>
+                    <select id="tie-dia">
+                        <option value="10" selected>10 mm</option>
+                        <option value="12">12 mm</option>
+                    </select>
+                </div>
+                <div class="form-col">
+                    <label>Cover (mm)</label>
+                    <input type="number" id="cover" value="40" min="20" step="5">
+                </div>
+            </div>
+
+            <button class="calc-btn" onclick="calculateColumn()">Analyze Column</button>
+        </div>
+    </nav>
+
+    <!-- RIGHT PANEL: RESULTS -->
+    <main class="results-panel">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Short Column Analysis</h1>
+            <p>Analyze axially loaded short columns and columns with eccentric loading. Checks slenderness limits and axial capacity based on ACI 318M-11.</p>
+        </div>
+
+        
+        <!-- Visualization -->
+        <div class="viz-container">
+            <div class="viz-item">
+                <h4>Section Detail</h4>
+                <canvas id="columnCanvas"></canvas>
+            </div>
+            <div class="viz-item">
+                <h4>Column Elevation</h4>
+                <canvas id="elevationCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Analysis Report -->
+        <div class="card">
+            <div class="summary-header">Analysis Results Summary</div>
+            <div id="results-content">
+                <p style="color: var(--text-muted);">Click "Analyze Column" to generate results.</p>
+            </div>
+        </div>
+
+    </main>
+
+<script>
+    // Initial draw on load
+    window.onload = function() {
+        // Add listeners to all inputs for live update
+        document.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('input', calculateColumn);
+            el.addEventListener('change', calculateColumn);
+        });
+        calculateColumn();
+    };
+
+    function calculateColumn() {
+        // 1. Get Inputs
+        const fc = parseFloat(document.getElementById('fc').value);
+        const fy = parseFloat(document.getElementById('fy').value);
+        const b = parseFloat(document.getElementById('width').value);
+        const h = parseFloat(document.getElementById('depth').value);
+        const Lu = parseFloat(document.getElementById('length').value);
+        const k = parseFloat(document.getElementById('k-factor').value);
+        const db = parseFloat(document.getElementById('bar-dia').value);
+        let n = parseInt(document.getElementById('num-bars').value);
+        const dt = parseFloat(document.getElementById('tie-dia').value);
+        const cover = parseFloat(document.getElementById('cover').value);
+        const bracing = document.querySelector('input[name="bracing"]:checked').value;
+
+        // Validation constraint for n
+        if(n < 4) n = 4;
+        if(n % 2 !== 0) n++; // Keep even for rectangular symmetry in this simple module
+
+        // 2. Geometric Properties
+        const Ag = b * h; // mm2
+        const Ast = n * (Math.PI * Math.pow(db, 2) / 4); // mm2
+        const rho = Ast / Ag;
+        
+        // 3. Slenderness Check (Rectangular)
+        // Radius of gyration r approx 0.3h (ACI)
+        const r = 0.3 * h; 
+        // Slenderness Ratio lambda
+        const lambda = (k * Lu * 1000) / r; // Lu to mm
+        // ACI 318-11: 22 for unbraced, 34-12(M1/M2) for braced. 
+        // Using 34 as a default for braced when moments are not specified.
+        const slendernessLimit = (bracing === 'unbraced') ? 22 : 34; 
+
+        // 4. Axial Capacity (Short Column)
+        // phi for Tied Column = 0.65
+        const phi = 0.65;
+        // P_n_max = 0.80 * [0.85*fc*(Ag-Ast) + fy*Ast]
+        const Pn_nominal = (0.85 * fc * (Ag - Ast) + fy * Ast) / 1000; // kN
+        const Pu_design = 0.80 * phi * Pn_nominal; // kN (ACI Design Axial Strength)
+
+        // 5. Code Checks (Sanity & Detailing)
+        
+        // Steel Percentage
+        let rhoCheck = "";
+        if(rho < 0.01) rhoCheck = `<span class="status-badge status-warn">Low (${(rho*100).toFixed(2)}%)</span> <br><small>Code requires min 1%. Consider reducing section or increasing steel.</small>`;
+        else if (rho > 0.08) rhoCheck = `<span class="status-badge status-fail">High (${(rho*100).toFixed(2)}%)</span> <br><small>Code limits to 8%. Congestion likely.</small>`;
+        else rhoCheck = `<span class="status-badge status-ok">OK (${(rho*100).toFixed(2)}%)</span>`;
+
+        // Fit Check (Clear Spacing)
+        // Assume bars distributed equally on 4 sides or just vertical sides. 
+        // Simplified: bars per face along width b (assuming rectangular tie layout)
+        // Let's place bars around perimeter.
+        // Total perimeter space available: 2*(b - 2*cover - 2*dt - db) + 2*(h - 2*cover - 2*dt - db) roughly
+        // Simplified check on one face:
+        const barsPerFaceB = Math.ceil(n/4) + 1; // Approx
+        const clearSpace = (b - 2*cover - 2*dt - barsPerFaceB*db) / (barsPerFaceB - 1);
+        const minClearSpace = Math.max(1.5 * db, 40);
+        let fitCheck = "";
+        if(clearSpace < minClearSpace) {
+            fitCheck = `<span class="status-badge status-fail">Fail (${clearSpace.toFixed(1)} mm)</span><br><small>Clear spacing < ACI min: ${minClearSpace.toFixed(1)} mm.</small>`;
+        } else {
+            fitCheck = `<span class="status-badge status-ok">Pass (~${Math.max(0, clearSpace).toFixed(1)} mm)</span>`;
+        }
+
+        // Tie Spacing Requirements (ACI/Metric)
+        const s1 = 16 * db;
+        const s2 = 48 * dt;
+        const s3 = Math.min(b, h);
+        const s_req = Math.min(s1, s2, s3);
+
+        // Slenderness Status
+        let slenderStatus = "";
+        if(lambda > slendernessLimit) {
+            slenderStatus = `<span class="status-badge status-fail">Slender ($\lambda$ = ${lambda.toFixed(1)})</span><br><small>Slenderness > 22. Detailed Slender Column Analysis Required (Moment Magnification).</small>`;
+        } else {
+            slenderStatus = `<span class="status-badge status-ok">Short ($\lambda$ = ${lambda.toFixed(1)})</span>`;
+        }
+
+        // 6. Generate Output HTML
+        const html = `
+            <div class="result-item">
+                <div class="result-label">1. Column Classification</div>
+                <div class="result-value">
+                    ${slenderStatus}
+                </div>
+                <div class="calculation-step">
+                    $$ \\lambda = \\frac{k l_u}{r} = \\frac{${k} \\times ${Lu*1000}}{0.3 \\times ${h}} = ${lambda.toFixed(2)} $$
+                </div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">2. Axial Load Capacity (Design Strength $\\phi P_{n(max)}$)</div>
+                <div class="result-value" style="font-size: 1.5rem; font-weight: bold; color: var(--accent-color);">
+                    ${Pu_design.toFixed(1)} kN
+                </div>
+                <div class="calculation-step">
+                    $$ \\phi P_{n(max)} = 0.80 \\phi [0.85 f'_c (A_g - A_{st}) + f_y A_{st}] $$
+                    $$ = 0.80(0.65) [0.85(${fc})(${Ag} - ${Ast.toFixed(0)}) + ${fy}(${Ast.toFixed(0)})] \\times 10^{-3} $$
+                </div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">3. Reinforcement Ratio Check ($\\%$)</div>
+                <div class="result-value">${rhoCheck}</div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">4. Spacing Check (Bar Fit)</div>
+                <div class="result-value">${fitCheck}</div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">5. Required Tie Spacing</div>
+                <div class="result-value">$${s_req.toFixed(0)} \\text{ mm c/c}$</div>
+                <div class="calculation-step" style="font-size: 0.85rem;">
+                    Min of:<br>
+                    1. $16 \\times d_b = ${s1.toFixed(0)} \\text{ mm}$<br>
+                    2. $48 \\times d_t = ${s2.toFixed(0)} \\text{ mm}$<br>
+                    3. Least Dim = ${s3.toFixed(0)} \\text{ mm}$
+                </div>
+            </div>
+
+            <div class="result-item">
+                <div class="result-label">6. Reinforcement Schedule</div>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem; margin-top:10px;">
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Main Bars</td><td style="padding:5px;">${n} - ϕ${db} mm</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Ties</td><td style="padding:5px;">ϕ${dt} mm @ ${s_req.toFixed(0)} mm c/c</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Steel $f_y$</td><td style="padding:5px;">${fy} MPa</td></tr>
+                </table>
+            </div>
+        `;
+
+        document.getElementById('results-content').innerHTML = html;
+        
+        // Re-render MathJax
+        if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();
+
+        // 7. Draw Visualization
+        drawColumn(b, h, cover, db, n, dt, s_req);
+        drawElevation(Lu, k, lambda > slendernessLimit);
+    }
+
+    function drawColumn(b, h, cover, db, n, dt, tieSpacing) {
+        const canvas = document.getElementById('columnCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Handle high DPI displays
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        const w = rect.width;
+        const _h = rect.height;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, w, _h);
+
+        // Padding
+        const padding = 40;
+        const availW = w - padding * 2;
+        const availH = _h - padding * 2;
+
+        // Scale factor
+        const scale = Math.min(availW / b, availH / h);
+
+        const drawW = b * scale;
+        const drawH = h * scale;
+        const startX = (w - drawW) / 2;
+        const startY = (_h - drawH) / 2;
+
+        // 1. Draw Concrete Section
+        ctx.fillStyle = '#f1f5f9';
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 2;
+        ctx.fillRect(startX, startY, drawW, drawH);
+        ctx.strokeRect(startX, startY, drawW, drawH);
+
+        // 2. Draw Ties
+        const tieInset = cover * scale;
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 3]); // Dashed to indicate it's internal
+        ctx.strokeRect(startX + tieInset, startY + tieInset, drawW - 2*tieInset, drawH - 2*tieInset);
+        ctx.setLineDash([]); // Reset
+
+        // 3. Draw Bars (Simplified distribution: corners + equally spaced)
+        ctx.fillStyle = '#0f172a'; // Bar color
+        const barRad = (db * scale) / 2;
+        
+        // Coordinates for bars (Perimeter distribution logic)
+        // Corner bars
+        const corners = [
+            {x: startX + tieInset + (dt*scale) + barRad, y: startY + tieInset + (dt*scale) + barRad}, // TL
+            {x: startX + drawW - tieInset - (dt*scale) - barRad, y: startY + tieInset + (dt*scale) + barRad}, // TR
+            {x: startX + drawW - tieInset - (dt*scale) - barRad, y: startY + drawH - tieInset - (dt*scale) - barRad}, // BR
+            {x: startX + tieInset + (dt*scale) + barRad, y: startY + drawH - tieInset - (dt*scale) - barRad} // BL
+        ];
+
+        // Draw corners
+        corners.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, barRad, 0, 2 * Math.PI);
+            ctx.fill();
+        });
+
+        // Draw remaining bars (n - 4) distributed along sides
+        // For simplicity in visualization, distribute remaining bars on vertical faces first, then horizontal
+        // This is a visualization approximation, not a perfect bar placer
+        let remaining = n - 4;
+        if(remaining > 0) {
+            // Split between sides
+            const sideBars = Math.ceil(remaining / 2); // Put bars on vertical faces (Left/Right)
+            // Or typically equally distributed. Let's do simple interpolation.
+            // Simplified: Not drawing intermediate bars perfectly for variable n, 
+            // but drawing representative dots to indicate reinforcement presence.
+            
+            // Draw a few intermediate bars on top/bottom
+            if(remaining > 0) {
+                const midX = startX + drawW/2;
+                const topY = corners[0].y;
+                const botY = corners[2].y;
+                
+                ctx.beginPath();
+                ctx.arc(midX, topY, barRad, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(midX, botY, barRad, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            // If n is large, draw side middles
+            if(n >= 8) {
+                const midY = startY + drawH/2;
+                const leftX = corners[0].x;
+                const rightX = corners[1].x;
+
+                ctx.beginPath();
+                ctx.arc(leftX, midY, barRad, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(rightX, midY, barRad, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
+        // 4. Annotations (Dimensions)
+        ctx.fillStyle = '#64748b';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+
+        // Width Dimension
+        ctx.beginPath();
+        ctx.moveTo(startX, startY - 20);
+        ctx.lineTo(startX + drawW, startY - 20);
+        ctx.stroke();
+        // Arrowheads
+        ctx.fillText(`b = ${b} mm`, startX + drawW/2, startY - 25);
+
+        // Height Dimension
+        ctx.beginPath();
+        ctx.moveTo(startX - 20, startY);
+        ctx.lineTo(startX - 20, startY + drawH);
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(startX - 25, startY + drawH/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillText(`h = ${h} mm`, 0, 0);
+        ctx.restore();
+
+        // Tie Annotation
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText(`${dt}mm Ties @ ${tieSpacing}mm`, startX + drawW/2, startY + drawH + 25);
+        
+        // Bar Annotation
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(`${n}-${db}mm Main Bars`, startX + drawW/2, startY + drawH + 45);
+    }
+
+    function drawElevation(lu, k, isSlender) {
+        const canvas = document.getElementById('elevationCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        const w = rect.width;
+        const h = rect.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const centerX = w / 2;
+        const startY = 40;
+        const endY = h - 40;
+
+        // Draw Column Axis
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(centerX, startY); ctx.lineTo(centerX, endY); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Column Body
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        const deflectionAmp = isSlender ? 20 : 0;
+
+        if (k === 2.0) {
+            ctx.moveTo(centerX, endY);
+            ctx.quadraticCurveTo(centerX, (startY + endY) / 2, centerX + deflectionAmp, startY);
+        } else {
+            ctx.moveTo(centerX, startY);
+            ctx.quadraticCurveTo(centerX + deflectionAmp, (startY + endY) / 2, centerX, endY);
+        }
+        ctx.stroke();
+
+        // Supports
+        const drawSupport = (x, y, type, isTop) => {
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2;
+            if (type === 'fixed') {
+                ctx.beginPath();
+                ctx.moveTo(x - 20, y); ctx.lineTo(x + 20, y); ctx.stroke();
+                for (let i = -20; i <= 20; i += 8) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + i, y);
+                    ctx.lineTo(x + i + (isTop ? -5 : 5), y + (isTop ? -8 : 8));
+                    ctx.stroke();
+                }
+            } else if (type === 'pinned') {
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - 10, y + (isTop ? -15 : 15));
+                ctx.lineTo(x + 10, y + (isTop ? -15 : 15));
+                ctx.closePath(); ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x - 15, y + (isTop ? -15 : 15)); ctx.lineTo(x + 15, y + (isTop ? -15 : 15)); ctx.stroke();
+            }
+        };
+
+        if (k === 1.0) { drawSupport(centerX, startY, 'pinned', true); drawSupport(centerX, endY, 'pinned', false); }
+        else if (k === 0.5) { drawSupport(centerX, startY, 'fixed', true); drawSupport(centerX, endY, 'fixed', false); }
+        else if (k === 0.7) { drawSupport(centerX, startY, 'fixed', true); drawSupport(centerX, endY, 'pinned', false); }
+        else if (k === 2.0) { drawSupport(centerX, endY, 'fixed', false); }
+    }
+</script>
+
+</body>
+</html>

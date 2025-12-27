@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mat Foundation Design | RC Design Suite</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
+    <!-- MathJax -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --primary: #1e293b;
+            --accent: #3b82f6;
+            --bg: #f1f5f9;
+            --panel-bg: #ffffff;
+            --border: #e2e8f0;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* --- NAVIGATION --- */
+        .navbar {
+            background-color: var(--primary);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .nav-left { display: flex; align-items: center; gap: 1rem; }
+        
+        .back-btn {
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .back-btn:hover { background-color: rgba(255,255,255,0.2); }
+        .nav-title { font-weight: 700; font-size: 1.25rem; }
+
+        /* --- LAYOUT --- */
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            height: calc(100vh - 70px); /* Fill remaining height */
+        }
+
+        /* --- LEFT PANEL (INPUTS) --- */
+        .input-panel {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+
+        .panel-header {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 0.75rem;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: var(--text-main);
+        }
+
+        .input-group input:focus {
+            outline: 2px solid var(--accent);
+            border-color: transparent;
+        }
+
+        /* Column Manager Styles */
+        .col-manager {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .col-list {
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            margin-bottom: 10px;
+        }
+
+        .col-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.8rem;
+            align-items: center;
+        }
+
+        .col-item:last-child { border-bottom: none; }
+
+        .btn-remove {
+            color: var(--danger);
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        .btn-add {
+            width: 100%;
+            padding: 0.6rem;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-add:hover { background-color: #2563eb; }
+
+        /* --- RIGHT PANEL (VISUALS & RESULTS) --- */
+        .results-panel {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 1.5rem;
+            overflow-y: auto;
+        }
+
+        /* Visualization Cards */
+        .viz-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .canvas-card {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+        }
+
+        canvas {
+            max-width: 100%;
+            border: 1px solid #eee;
+            background: #fdfdfd;
+        }
+
+        .card-label {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            width: 100%;
+        }
+
+        /* Results Area */
+        .results-content {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        .calc-step {
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 1.5rem;
+        }
+
+        .step-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .step-text {
+            font-size: 0.9rem;
+            color: var(--text-main);
+            line-height: 1.6;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        
+        .status-ok { background: #dcfce7; color: #166534; }
+        .status-warn { background: #fef3c7; color: #92400e; }
+        .status-err { background: #fee2e2; color: #991b1b; }
+
+        /* Tables */
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+
+        .result-table th {
+            text-align: left;
+            padding: 8px;
+            background: #f8fafc;
+            color: var(--text-sub);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .result-table td {
+            padding: 8px;
+            border-bottom: 1px solid #f1f5f9;
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Responsive */
+        @media (max-width: 1100px) {
+            .container { grid-template-columns: 1fr; height: auto; }
+            .viz-container { grid-template-columns: 1fr; }
+            .input-panel { max-height: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <a href="index.html" class="back-btn">
+                <i class="fa-solid fa-arrow-left"></i> Back
+            </a>
+            <span class="nav-title">Mat Foundation Design (SI Units)</span>
+        </div>
+        <div>
+            <i class="fa-solid fa-cube"></i> RC Design Suite
+        </div>
+    </nav>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container">
+        
+        <!-- SIDEBAR INPUTS -->
+        <aside class="input-panel">
+            <!-- Geometry -->
+            <div>
+                <div class="panel-header">Foundation Geometry</div>
+                <div class="input-group">
+                    <label>Width ($B_x$)</label>
+                    <input type="number" id="inp_Bx" value="10.0" step="0.1" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Length ($B_y$)</label>
+                    <input type="number" id="inp_By" value="12.0" step="0.1" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Thickness ($h$)</label>
+                    <input type="number" id="inp_h" value="600" step="10" oninput="calculate()">
+                </div>
+            </div>
+
+            <!-- Material Properties -->
+            <div>
+                <div class="panel-header">Material Properties</div>
+                <div class="input-group">
+                    <label>Concrete ($f'_c$)</label>
+                    <input type="number" id="inp_fc" value="25" step="1" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Steel Yield ($f_y$)</label>
+                    <input type="number" id="inp_fy" value="420" step="10" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Bar Size ($\phi$)</label>
+                    <select id="inp_bar" onchange="calculate()">
+                        <option value="16">16 mm</option>
+                        <option value="20" selected>20 mm</option>
+                        <option value="25">25 mm</option>
+                        <option value="28">28 mm</option>
+                        <option value="32">32 mm</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Cover</label>
+                    <input type="number" id="inp_cover" value="75" step="5" oninput="calculate()">
+                </div>
+            </div>
+
+            <!-- Soil -->
+            <div>
+                <div class="panel-header">Soil Parameters</div>
+                <div class="input-group">
+                    <label>Allowable Bearing ($q_{all}$)</label>
+                    <input type="number" id="inp_qall" value="150" step="5" oninput="calculate()">
+                </div>
+            </div>
+
+            <!-- Columns Manager -->
+            <div class="col-manager">
+                <div class="panel-header" style="border:none; margin-bottom: 5px;">Column Loads</div>
+                
+                <!-- New Column Inputs -->
+                <div style="font-size: 0.8rem; margin-bottom: 5px; color: var(--text-sub);">Position (from bottom-left):</div>
+                <div class="input-group">
+                    <label>Pos X (m)</label>
+                    <input type="number" id="col_x" value="2">
+                </div>
+                <div class="input-group">
+                    <label>Pos Y (m)</label>
+                    <input type="number" id="col_y" value="2">
+                </div>
+                <div style="font-size: 0.8rem; margin-bottom: 5px; color: var(--text-sub);">Loads (Service/Unfactored):</div>
+                <div class="input-group">
+                    <label>Axial P (kN)</label>
+                    <input type="number" id="col_p" value="1000">
+                </div>
+                <!-- Simplified: Assume moments are small or handled via eccentricity for this calculator -->
+                <button class="btn-add" onclick="addColumn()"><i class="fa-solid fa-plus"></i> Add Column</button>
+
+                <div style="margin-top: 15px; font-weight: 600; font-size: 0.9rem;">Existing Columns</div>
+                <div class="col-list" id="columnList">
+                    <!-- JS will populate -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- VISUALS & RESULTS -->
+        <div class="results-panel">
+            
+            <!-- Visualization -->
+            <div class="viz-container">
+                <div class="canvas-card">
+                    <div class="card-label">Plan View (Columns & Resultant)</div>
+                    <canvas id="planCanvas" width="500" height="400"></canvas>
+                </div>
+                <div class="canvas-card">
+                    <div class="card-label">Elevation (Section X-X)</div>
+                    <canvas id="eleCanvas" width="250" height="400"></canvas>
+                </div>
+            </div>
+
+            <!-- Results Text -->
+            <div class="results-content" id="resultsOutput">
+                <!-- JS Populates this -->
+                <div style="color: var(--text-sub); text-align: center;">Add columns to begin analysis...</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- DATA STATE ---
+        let columns = [
+            {id: 1, x: 1, y: 1, p: 1200},
+            {id: 2, x: 9, y: 1, p: 1200},
+            {id: 3, x: 1, y: 11, p: 1200},
+            {id: 4, x: 9, y: 11, p: 1200},
+            {id: 5, x: 5, y: 6, p: 2000}
+        ]; // Default start set
+
+        // --- DOM ELEMENTS ---
+        const inputs = {
+            Bx: document.getElementById('inp_Bx'),
+            By: document.getElementById('inp_By'),
+            h: document.getElementById('inp_h'),
+            fc: document.getElementById('inp_fc'),
+            fy: document.getElementById('inp_fy'),
+            bar: document.getElementById('inp_bar'),
+            cover: document.getElementById('inp_cover'),
+            qall: document.getElementById('inp_qall'),
+            // Column inputs
+            cx: document.getElementById('col_x'),
+            cy: document.getElementById('col_y'),
+            cp: document.getElementById('col_p'),
+        };
+        const output = document.getElementById('resultsOutput');
+        const planCanvas = document.getElementById('planCanvas');
+        const eleCanvas = document.getElementById('eleCanvas');
+        const ctxPlan = planCanvas.getContext('2d');
+        const ctxEle = eleCanvas.getContext('2d');
+
+        // --- FUNCTIONS ---
+
+        function addColumn() {
+            const x = parseFloat(inputs.cx.value);
+            const y = parseFloat(inputs.cy.value);
+            const p = parseFloat(inputs.cp.value);
+            const Bx = parseFloat(inputs.Bx.value);
+            const By = parseFloat(inputs.By.value);
+
+            // Basic Validation
+            if (isNaN(x) || isNaN(y) || isNaN(p)) return alert("Invalid Input");
+            if (x < 0 || x > Bx || y < 0 || y > By) return alert("Column is outside the Mat foundation boundaries.");
+
+            columns.push({ id: Date.now(), x, y, p });
+            renderColumnList();
+            calculate();
+        }
+
+        function removeColumn(id) {
+            columns = columns.filter(c => c.id !== id);
+            renderColumnList();
+            calculate();
+        }
+
+        function renderColumnList() {
+            const list = document.getElementById('columnList');
+            list.innerHTML = '';
+            columns.forEach((c, index) => {
+                const div = document.createElement('div');
+                div.className = 'col-item';
+                div.innerHTML = `
+                    <span><b>C${index+1}</b> (${c.x}m, ${c.y}m) : ${c.p}kN</span>
+                    <button class="btn-remove" onclick="removeColumn(${c.id})"><i class="fa-solid fa-trash"></i></button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function drawPlan(Bx, By, Rx, Ry, spacing, cover) {
+            const w = planCanvas.width;
+            const h = planCanvas.height;
+            const padding = 40;
+            
+            ctxPlan.clearRect(0, 0, w, h);
+            
+            // Scaling factors
+            const scaleX = (w - 2 * padding) / Bx;
+            const scaleY = (h - 2 * padding) / By;
+            const scale = Math.min(scaleX, scaleY);
+
+            const drawW = Bx * scale;
+            const drawH = By * scale;
+            
+            // Center geometry
+            const startX = (w - drawW) / 2;
+            const startY = (h - drawH) / 2;
+
+            // Draw Mat
+            ctxPlan.fillStyle = '#f8fafc';
+            ctxPlan.strokeStyle = '#334155';
+            ctxPlan.lineWidth = 2;
+            ctxPlan.fillRect(startX, startY, drawW, drawH);
+            ctxPlan.strokeRect(startX, startY, drawW, drawH);
+
+            // Draw Grid Lines (Center)
+            ctxPlan.strokeStyle = '#e2e8f0';
+            ctxPlan.setLineDash([5, 5]);
+            ctxPlan.beginPath();
+            ctxPlan.moveTo(startX + drawW/2, startY);
+            ctxPlan.lineTo(startX + drawW/2, startY + drawH);
+            ctxPlan.moveTo(startX, startY + drawH/2);
+            ctxPlan.lineTo(startX + drawW, startY + drawH/2);
+            ctxPlan.stroke();
+            ctxPlan.setLineDash([]);
+
+            // Draw Rebar Mesh
+            if (spacing && spacing > 0) {
+                const s_m = spacing / 1000;
+                const c_m = cover / 1000;
+                ctxPlan.strokeStyle = 'rgba(59, 130, 246, 0.3)'; 
+                ctxPlan.lineWidth = 1;
+
+                // Vertical bars
+                for (let x = c_m; x <= Bx - c_m + 0.01; x += s_m) {
+                    const px = startX + x * scale;
+                    ctxPlan.beginPath();
+                    ctxPlan.moveTo(px, startY + c_m * scale);
+                    ctxPlan.lineTo(px, startY + drawH - c_m * scale);
+                    ctxPlan.stroke();
+                }
+
+                // Horizontal bars
+                for (let y = c_m; y <= By - c_m + 0.01; y += s_m) {
+                    const py = startY + (By - y) * scale;
+                    ctxPlan.beginPath();
+                    ctxPlan.moveTo(startX + c_m * scale, py);
+                    ctxPlan.lineTo(startX + drawW - c_m * scale, py);
+                    ctxPlan.stroke();
+                }
+            }
+
+            // Draw Columns
+            ctxPlan.fillStyle = '#1e293b';
+            columns.forEach(c => {
+                // Convert Cartesian (Bottom-Left) to Canvas (Top-Left)
+                const cx = startX + (c.x * scale);
+                const cy = startY + (By - c.y) * scale; // Invert Y
+                
+                ctxPlan.fillRect(cx - 5, cy - 5, 10, 10);
+                ctxPlan.font = "10px Inter";
+                ctxPlan.fillText(`${c.p}kN`, cx + 8, cy);
+            });
+
+            // Draw Resultant
+            ctxPlan.fillStyle = '#ef4444';
+            const rx = startX + (Rx * scale);
+            const ry = startY + (By - Ry) * scale;
+            ctxPlan.beginPath();
+            ctxPlan.arc(rx, ry, 6, 0, 2 * Math.PI);
+            ctxPlan.fill();
+            ctxPlan.font = "bold 12px Inter";
+            ctxPlan.fillText("R", rx + 10, ry - 10);
+        }
+
+        function drawElevation(h_mm, cover, barDia) {
+            const w = eleCanvas.width;
+            const h = eleCanvas.height;
+            ctxEle.clearRect(0, 0, w, h);
+
+            const scale = (h - 60) / (h_mm * 1.5); // artificial scale for visualization
+            
+            const slabThickDraw = h_mm * scale;
+            const startX = 20;
+            const startY = (h - slabThickDraw) / 2;
+            const drawW = w - 40;
+
+            // Concrete
+            ctxEle.fillStyle = '#e2e8f0';
+            ctxEle.fillRect(startX, startY, drawW, slabThickDraw);
+            ctxEle.strokeStyle = '#334155';
+            ctxEle.strokeRect(startX, startY, drawW, slabThickDraw);
+
+            // Rebar (Top)
+            const topY = startY + (cover * scale);
+            ctxEle.strokeStyle = '#ef4444';
+            ctxEle.lineWidth = 3;
+            ctxEle.beginPath();
+            ctxEle.moveTo(startX + 10, topY);
+            ctxEle.lineTo(startX + drawW - 10, topY);
+            ctxEle.stroke();
+
+            // Rebar (Bottom)
+            const botY = startY + slabThickDraw - (cover * scale);
+            ctxEle.strokeStyle = '#3b82f6';
+            ctxEle.beginPath();
+            ctxEle.moveTo(startX + 10, botY);
+            ctxEle.lineTo(startX + drawW - 10, botY);
+            ctxEle.stroke();
+
+            // Labels
+            ctxEle.fillStyle = '#0f172a';
+            ctxEle.font = '12px Inter';
+            ctxEle.fillText(`h = ${h_mm}mm`, startX, startY - 10);
+            ctxEle.fillText('Top Steel', startX, topY - 5);
+            ctxEle.fillText('Bot Steel', startX, botY + 15);
+        }
+
+        function calculate() {
+            // 1. Get Inputs
+            const Bx = parseFloat(inputs.Bx.value);
+            const By = parseFloat(inputs.By.value);
+            const h = parseFloat(inputs.h.value); // mm
+            const fc = parseFloat(inputs.fc.value); // MPa
+            const fy = parseFloat(inputs.fy.value); // MPa
+            const d_b = parseFloat(inputs.bar.value); // mm
+            const cover = parseFloat(inputs.cover.value); // mm
+            const q_all = parseFloat(inputs.qall.value); // kPa
+
+            if(columns.length === 0) {
+                output.innerHTML = '<div style="color: var(--text-sub); text-align: center;">Add columns to begin analysis...</div>';
+                return;
+            }
+
+            // 2. Global Load Calculations (Service)
+            let SumP = 0;
+            let SumMx = 0; // Moment about x-axis (due to y distance)
+            let SumMy = 0; // Moment about y-axis (due to x distance)
+
+            columns.forEach(c => {
+                SumP += c.p;
+                SumMx += c.p * c.y; // Moment arm from X-axis (y=0)
+                SumMy += c.p * c.x; // Moment arm from Y-axis (x=0)
+            });
+
+            // Resultant Location
+            const Xr = SumMy / SumP;
+            const Yr = SumMx / SumP;
+
+            // Geometric Centroid
+            const Xc = Bx / 2;
+            const Yc = By / 2;
+
+            // Eccentricity
+            const ex = Xr - Xc;
+            const ey = Yr - Yc;
+
+            // Total Moments at Centroid
+            // M_centroid_y = SumP * ex
+            // M_centroid_x = SumP * ey
+            const M_mat_x = SumP * ey; // Moment causing bending in Y-direction profile (around X axis)
+            const M_mat_y = SumP * ex; // Moment causing bending in X-direction profile (around Y axis)
+
+            // Section Properties
+            const Area = Bx * By;
+            const Ix = (Bx * Math.pow(By, 3)) / 12; // Inertia about X axis
+            const Iy = (By * Math.pow(Bx, 3)) / 12; // Inertia about Y axis
+            
+            const Sx = Ix / (By/2);
+            const Sy = Iy / (Bx/2);
+
+            // Soil Pressures (Corner Points)
+            // q = P/A ± Mx/Sx ± My/Sy
+            // Let's calculate 4 corners: (0,0), (Bx,0), (Bx,By), (0,By)
+            // Note signs: M_mat_x positive means load is shifted +Y. Pressure increases at +Y.
+            // M_mat_y positive means load is shifted +X. Pressure increases at +X.
+
+            const stress_axial = SumP / Area;
+            const stress_bend_x = Math.abs(M_mat_x) / Sx; // Stress diff due to Ey
+            const stress_bend_y = Math.abs(M_mat_y) / Sy; // Stress diff due to Ex
+
+            // Determine max pressure (Assuming rigid plate theory)
+            // This is a simplification. Real mats are flexible.
+            const q_max = stress_axial + stress_bend_x + stress_bend_y;
+            const q_min = stress_axial - stress_bend_x - stress_bend_y;
+
+            // Self Weight check (Usually included in q_all, but lets check net)
+            // Ignoring mat weight for bearing capacity usually implies q_all is "Net Allowable".
+            // Let's assume P inputs are superimposed loads.
+            
+            // 3. Structural Design (Strip Method Approximation)
+            // Assume Average Pressure factored for design (simplified load factor 1.45 avg)
+            const LF = 1.45; 
+            const q_u_avg = stress_axial * LF; // Factored average pressure for flexure design
+            
+            // Approximate Flexure: Inverted slab.
+            // Max Moment approx q * L^2 / 8 in middle strips? 
+            // Better approx for mats: M_pos = q L^2 / 10 (approx), M_neg similar. 
+            // We will use q_u * (Column Spacing)^2 / 8 conservatively.
+            // Let's estimate span as max dimension for worst case envelope or Bx/2.
+            // To make this tool useful without complex FEA, we calculate As required for a unit width strip
+            // resisting the maximum upward soil pressure over a conservative span.
+            // Let's assume a typical bay span L_design = 5m (or user derived, but we'll fix for this calculator type).
+            // Actually, let's use the max distance between columns or edge distance.
+            // Heuristic: Max Moment ~ q_u_design * (Shortest_Side/2)^2 / 2 (Cantilever action) or q L^2/8
+            
+            // Let's calculate Reinforcement based on a 1m strip resisting q_max * LF.
+            // Effective depth
+            const d = h - cover - (d_b/2);
+            
+            // Heuristic Design Moment (kNm/m)
+            // Assuming the mat acts somewhat like a spread footing or inverted floor.
+            // We will define a characteristic "Span" based on column layout. 
+            // For this calculator, we'll assume a conservative span of 1/2 the width Bx or By.
+            // Or better, let's treat it as a cantilever from centroid for sanity checking steel.
+            // Real mat design needs FEA. We will provide a specific moment output based on
+            // M = q_u * l^2 / 8 where l = max(Bx, By) / 3 (Approximation of column spacing).
+            const approx_span = Math.max(Bx, By) / 3; 
+            const M_u = (q_max * LF) * Math.pow(approx_span, 2) / 10; // Coeff 1/10 typical for continuous
+
+            // Steel Calculation
+            // Mu (kNm) -> d (mm). 
+            // As = Mu / (0.9 * fy * 0.9d) approx
+            const M_u_Nmm = M_u * 1e6;
+            const phi = 0.9;
+            const jd = 0.9 * d;
+            let As_req = M_u_Nmm / (phi * fy * jd); // mm2 per meter
+
+            // Min Steel (Temperature & Shrinkage)
+            // 0.0018 * b * h
+            const As_min = 0.0018 * 1000 * h;
+
+            const As_design = Math.max(As_req, As_min);
+
+            // Bar Spacing
+            const area_bar = (Math.PI * Math.pow(d_b, 2)) / 4;
+            let spacing = (area_bar * 1000) / As_design;
+            
+            // Sanity Checks
+            let checks = [];
+            
+            // Check Bearing
+            if(q_max > q_all) {
+                checks.push({msg: `Max Soil Pressure (${q_max.toFixed(1)} kPa) > Allowable (${q_all} kPa)`, type: 'err'});
+            } else {
+                checks.push({msg: `Soil Pressure OK (${q_max.toFixed(1)} < ${q_all} kPa)`, type: 'ok'});
+            }
+
+            // Check Eccentricity (Kern)
+            const kernX = Bx/6;
+            const kernY = By/6;
+            if(Math.abs(ex) > kernX || Math.abs(ey) > kernY) {
+                checks.push({msg: `Resultant is outside the Kern (e > L/6). Tension in soil!`, type: 'warn'});
+            } else {
+                checks.push({msg: `Resultant within Kern. No soil tension.`, type: 'ok'});
+            }
+
+            // Check Bar Spacing
+            if(spacing < 75) {
+                checks.push({msg: `Bar spacing (${Math.floor(spacing)}mm) is too tight (Code min ~75mm). Increase h or bar size.`, type: 'err'});
+            } else if (spacing > 450) {
+                spacing = 450; // Max limit
+                checks.push({msg: `Bar spacing controlled by code max (450mm).`, type: 'ok'});
+            } else {
+                checks.push({msg: `Bar fitment OK.`, type: 'ok'});
+            }
+
+            // --- RENDER RESULTS ---
+            
+            drawPlan(Bx, By, Xr, Yr, spacing, cover);
+            drawElevation(h, cover, d_b);
+
+            let html = `
+                <div class="calc-step">
+                    <div class="step-title">1. Load Resultant & Eccentricity</div>
+                    <div class="step-text">
+                        Total Axial Load $\\sum P = ${SumP.toFixed(1)}$ kN<br>
+                        Geometric Centroid: $X_c = ${(Bx/2).toFixed(2)}$ m, $Y_c = ${(By/2).toFixed(2)}$ m<br>
+                        Load Centroid: $X_r = ${Xr.toFixed(2)}$ m, $Y_r = ${Yr.toFixed(2)}$ m<br>
+                        Eccentricity: $e_x = ${(ex).toFixed(3)}$ m, $e_y = ${(ey).toFixed(3)}$ m
+                    </div>
+                </div>
+
+                <div class="calc-step">
+                    <div class="step-title">2. Soil Pressure (Rigid Method)</div>
+                    <div class="step-text">
+                        Area $A = ${(Area).toFixed(2)}$ m², $I_x = ${Ix.toFixed(1)}$ m⁴, $I_y = ${Iy.toFixed(1)}$ m⁴<br>
+                        Moment due to eccentricity: $M_{mat,x} = ${(M_mat_x).toFixed(1)}$ kNm, $M_{mat,y} = ${(M_mat_y).toFixed(1)}$ kNm<br>
+                        $$ q_{max} = \\frac{P}{A} + \\frac{M_x}{S_x} + \\frac{M_y}{S_y} = ${q_max.toFixed(2)} \\text{ kPa} $$
+                        $$ q_{min} = ${q_min.toFixed(2)} \\text{ kPa} $$
+                    </div>
+                </div>
+
+                <div class="calc-step">
+                    <div class="step-title">3. Flexural Design (Approximate)</div>
+                    <div class="step-text">
+                        Design Strip Width: 1.0 m<br>
+                        Factored Soil Pressure $q_u \\approx ${q_u_avg.toFixed(1)}$ kPa<br>
+                        Effective Depth $d = ${h} - ${cover} - ${d_b}/2 = ${d.toFixed(1)}$ mm<br>
+                        Approx. Design Moment $M_u \\approx ${M_u.toFixed(1)}$ kNm/m (Based on estimated span ${(approx_span).toFixed(1)}m)<br>
+                        Required Steel $A_{s,req} = ${Math.ceil(As_req)}$ mm²/m<br>
+                        Min. Steel (Shrinkage) $A_{s,min} = ${Math.ceil(As_min)}$ mm²/m<br>
+                        <strong>Design Steel $A_s = ${Math.ceil(As_design)}$ mm²/m</strong>
+                    </div>
+                </div>
+
+                <div class="calc-step">
+                    <div class="step-title">4. Sanity Checks</div>
+                    ${checks.map(c => `<div style="margin-bottom:5px;"><span class="status-badge status-${c.type}">${c.type}</span> ${c.msg}</div>`).join('')}
+                </div>
+
+                <div class="step-title">Reinforcement Summary</div>
+                <table class="result-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Bar Diameter</td>
+                            <td>${d_b} mm</td>
+                        </tr>
+                        <tr>
+                            <td>Required Area ($A_s$)</td>
+                            <td>${Math.ceil(As_design)} mm²/m</td>
+                        </tr>
+                        <tr>
+                            <td>Recommended Spacing</td>
+                            <td><strong>${Math.floor(spacing)} mm</strong> c/c</td>
+                        </tr>
+                        <tr>
+                            <td>Provided Area</td>
+                            <td>${Math.floor((1000/Math.floor(spacing)) * area_bar)} mm²/m</td>
+                        </tr>
+                        <tr>
+                            <td>Layer Arrangement</td>
+                            <td>Top & Bottom (Mesh)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+            output.innerHTML = html;
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        // Initialize
+        renderColumnList();
+        calculate();
+
+    </script>
+</body>
+</html>

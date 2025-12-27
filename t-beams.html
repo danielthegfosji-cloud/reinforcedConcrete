@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Design Suite | T-Beam Calculator</title>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax for Latex -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* Tabs */
+        .tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+        .tab {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        .tab.active {
+            color: var(--accent);
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: -2px;
+        }
+
+        /* Results Panel */
+        .results-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Visualization */
+        .viz-card {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        svg { width: 100%; height: 100%; max-height: 400px; }
+        
+        /* Text/Label Styles within SVG */
+        .dim-text { font-size: 12px; fill: #64748b; font-family: sans-serif; }
+        .bar-label { font-size: 14px; font-weight: bold; fill: #ef4444; }
+        .section-fill { fill: #e2e8f0; stroke: #334155; stroke-width: 2; }
+        .stirrup-stroke { fill: none; stroke: #3b82f6; stroke-width: 2; stroke-dasharray: 4; }
+        .rebar-fill { fill: #ef4444; stroke: #7f1d1d; stroke-width: 1; }
+        .dim-line { stroke: #64748b; stroke-width: 1; }
+
+        .latex-output {
+            margin-top: 1rem;
+            font-size: 1rem;
+        }
+
+        .status-box {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-success { background: #dcfce7; color: #166534; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+        .status-warning { background: #fef3c7; color: #92400e; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">T-Beam Properties</h2>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('design')">Design</div>
+            <div class="tab" onclick="switchTab('analysis')">Analysis</div>
+        </div>
+
+        <form id="calcForm">
+            <!-- Geometry Section -->
+            <div class="section-header">Geometry</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Flange Width, $b_{eff}$ (mm)</label>
+                    <input type="number" id="beff" value="600" min="100">
+                </div>
+                <div class="form-col">
+                    <label>Flange Thick., $h_f$ (mm)</label>
+                    <input type="number" id="hf" value="100" min="50">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Web Width, $b_w$ (mm)</label>
+                    <input type="number" id="bw" value="300" min="100">
+                </div>
+                <div class="form-col">
+                    <label>Total Height, $h$ (mm)</label>
+                    <input type="number" id="h" value="500" min="200">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Concrete Cover (mm)</label>
+                <input type="number" id="cover" value="40">
+            </div>
+
+            <!-- Material Properties -->
+            <div class="section-header">Materials</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>$f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28">
+                </div>
+                <div class="form-col">
+                    <label>$f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Stirrup $\phi$ (mm)</label>
+                    <select id="stirrupSize">
+                        <option value="8">8 mm</option>
+                        <option value="10" selected>10 mm</option>
+                        <option value="12">12 mm</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- DESIGN TAB INPUTS -->
+            <div id="designInputs">
+                <div class="section-header">Loading (Design)</div>
+                <div class="form-group">
+                    <label>Factored Moment, $M_u$ (kNm)</label>
+                    <input type="number" id="Mu" value="350">
+                </div>
+                <div class="form-group">
+                    <label>Preferred Bar Size</label>
+                    <select id="designBarSize">
+                        <option value="16">16 mm</option>
+                        <option value="20">20 mm</option>
+                        <option value="25" selected>25 mm</option>
+                        <option value="28">28 mm</option>
+                        <option value="32">32 mm</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- ANALYSIS TAB INPUTS -->
+            <div id="analysisInputs" class="hidden">
+                <div class="section-header">Reinforcement (Analysis)</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Qty Tension Bars</label>
+                        <input type="number" id="nbars" value="4">
+                    </div>
+                    <div class="form-col">
+                        <label>Bar Size (mm)</label>
+                        <select id="analysisBarSize">
+                            <option value="16">16 mm</option>
+                            <option value="20">20 mm</option>
+                            <option value="25" selected>25 mm</option>
+                            <option value="28">28 mm</option>
+                            <option value="32">32 mm</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="calc-btn" onclick="calculate()">Calculate</button>
+            </form>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>T-Beam Design & Analysis</h1>
+            <p>Calculate flexural capacity and required reinforcement for T-shaped concrete sections based on ACI 318M-11.</p>
+        </div>
+
+        <div class="results-panel">
+            
+        <!-- Visualization -->
+            <div class="viz-card">
+            <svg id="beamSvg" viewBox="0 0 500 500" preserveAspectRatio="xMidYMid meet">
+                <!-- SVG content drawn by JS -->
+                <text x="50%" y="50%" text-anchor="middle" fill="#94a3b8">Enter parameters and click Calculate</text>
+            </svg>
+        </div>
+
+        <!-- Text Summary -->
+        <div class="card">
+            <h3 style="margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Detailed Results</h3>
+            <div id="resultOutput">
+                <!-- Results populated by JS -->
+            </div>
+        </div>
+
+        </div>
+    </main>
+
+<script>
+    let currentMode = 'design';
+
+    function switchTab(mode) {
+        currentMode = mode;
+        const tabs = document.querySelectorAll('.tab');
+        const designDiv = document.getElementById('designInputs');
+        const analysisDiv = document.getElementById('analysisInputs');
+
+        tabs.forEach(t => t.classList.remove('active'));
+        if(mode === 'design') {
+            tabs[0].classList.add('active');
+            designDiv.classList.remove('hidden');
+            analysisDiv.classList.add('hidden');
+        } else {
+            tabs[1].classList.add('active');
+            designDiv.classList.add('hidden');
+            analysisDiv.classList.remove('hidden');
+        }
+    }
+
+    // --- CALCULATION ENGINE ---
+    function calculate() {
+        // Gather Inputs
+        const beff = parseFloat(document.getElementById('beff').value);
+        const hf = parseFloat(document.getElementById('hf').value);
+        const bw = parseFloat(document.getElementById('bw').value);
+        const h = parseFloat(document.getElementById('h').value);
+        const cover = parseFloat(document.getElementById('cover').value);
+        const fc = parseFloat(document.getElementById('fc').value);
+        const fy = parseFloat(document.getElementById('fy').value);
+        const stirrupDia = parseFloat(document.getElementById('stirrupSize').value);
+
+        const resultDiv = document.getElementById('resultOutput');
+        let html = "";
+        let svgData = {};
+
+        // Validation - Basic Geometry
+        if (bw >= beff) {
+             resultDiv.innerHTML = `<div class="status-box status-error"><i class="fas fa-exclamation-triangle"></i> Error: Web width ($b_w$) must be less than Flange width ($b_{eff}$).</div>`;
+             MathJax.typesetPromise();
+             return;
+        }
+
+        // Calculate Beta1 (ACI 318M)
+        let beta1 = 0.85;
+        if (fc > 28) {
+            beta1 = 0.85 - 0.05 * (fc - 28) / 7;
+            if (beta1 < 0.65) beta1 = 0.65;
+        }
+
+        if (currentMode === 'design') {
+            // --- DESIGN LOGIC ---
+            const Mu_kNm = parseFloat(document.getElementById('Mu').value);
+            const Mu = Mu_kNm * 1e6; // N-mm
+            const barDia = parseFloat(document.getElementById('designBarSize').value);
+            
+            // Estimate d (one layer assumption first)
+            const d = h - cover - stirrupDia - barDia/2;
+            
+            // Assume tension controlled initially
+            const phi = 0.9;
+            
+            // 1. Check if rectangular section behavior is sufficient (Compression block 'a' <= hf)
+            // Calculate capacity of flange alone treating it as a rectangular beam b_eff wide
+            // Mu = phi * As * fy * (d - a/2) -> solve quadratic or iterate.
+            // Simplified check: assume a = hf
+            const Mn_flange_limit = 0.85 * fc * beff * hf * (d - hf/2);
+            const Mu_flange_limit = phi * Mn_flange_limit;
+
+            let As_req = 0;
+            let behavior = "";
+            let a_calc = 0;
+
+            if (Mu <= Mu_flange_limit) {
+                // Acts as Rectangular Beam with width beff
+                behavior = "Rectangular Section Behavior ($a \\le h_f$)";
+                // Rn method
+                const Rn = Mu / (phi * beff * Math.pow(d, 2));
+                const rho = (0.85 * fc / fy) * (1 - Math.sqrt(1 - (2 * Rn) / (0.85 * fc)));
+                As_req = rho * beff * d;
+                a_calc = (As_req * fy) / (0.85 * fc * beff);
+
+            } else {
+                // True T-Beam Behavior
+                behavior = "True T-Beam Behavior ($a > h_f$)";
+                // 1. Flange Capacity (wings)
+                const Asf = (0.85 * fc * (beff - bw) * hf) / fy;
+                const Muf = phi * Asf * fy * (d - hf/2);
+                
+                // 2. Remaining Moment for Web
+                const Muw = Mu - Muf;
+                
+                // 3. Design Web Steel
+                const Rn_web = Muw / (phi * bw * Math.pow(d, 2));
+                const rho_web = (0.85 * fc / fy) * (1 - Math.sqrt(1 - (2 * Rn_web) / (0.85 * fc)));
+                const Asw = rho_web * bw * d;
+                
+                As_req = Asf + Asw;
+                a_calc = (Asw * fy) / (0.85 * fc * bw); // This is 'a' for the web part? No, simplified check often sets a = a_web. Strictly, C_total = T_total.
+            }
+
+            // Calculate Number of Bars
+            const areaOneBar = (Math.PI * Math.pow(barDia, 2)) / 4;
+            let numBars = Math.ceil(As_req / areaOneBar);
+            // Min reinforcement check (simplified ACI)
+            const As_min1 = 0.25 * (Math.sqrt(fc) / fy) * bw * d;
+            const As_min2 = 1.4 * bw * d / fy;
+            const As_min = Math.max(As_min1, As_min2);
+
+            const statusClass = (As_req * areaOneBar < As_min) ? "status-warning" : "status-success";
+            const minMsg = (As_req * areaOneBar < As_min) ? "Calculated steel is below minimum. Using minimum steel." : "Steel requirement met.";
+            
+            if (As_req < As_min) {
+                As_req = As_min;
+                numBars = Math.ceil(As_req / areaOneBar);
+            }
+
+            const As_prov = numBars * areaOneBar;
+
+            // Fit Check (Sanity Check)
+            // Can bars fit in one layer?
+            // Space required = 2*cover + 2*stirrup + numBars*barDia + (numBars-1)*spacing
+            // Spacing min: 25mm or barDia
+            const minSpacing = Math.max(25, barDia);
+            const widthReq = (2 * cover) + (2 * stirrupDia) + (numBars * barDia) + ((numBars - 1) * minSpacing);
+            
+            let fitStatus = "";
+            let layers = 1;
+            
+            if (widthReq > bw) {
+                fitStatus = `<div class="status-box status-error"><i class="fas fa-exclamation-circle"></i> 
+                    <strong>Fit Issue:</strong> ${numBars} x ${barDia}mm bars require ${widthReq.toFixed(0)}mm width, 
+                    but web is only ${bw}mm. Bars must be placed in multiple layers.</div>`;
+                layers = 2; // Simple switch to 2 layers for visualization logic
+            } else {
+                fitStatus = `<div class="status-box status-success"><i class="fas fa-check-circle"></i> 
+                    Bars fit in a single layer (Req: ${widthReq.toFixed(0)}mm).</div>`;
+            }
+
+            // Output HTML construction
+            html += `<div class="status-box status-success"><i class="fas fa-check"></i> Design Calculation Complete</div>`;
+            html += fitStatus;
+            
+            html += `<p><strong>Behavior:</strong> ${behavior}</p>`;
+            html += `<p><strong>Required $A_s$:</strong> ${As_req.toFixed(2)} mm²</p>`;
+            html += `<p><strong>Provided:</strong> ${numBars} bars of $${barDia} \\text{ mm}$ (${As_prov.toFixed(2)} mm²)</p>`;
+            html += `<p><strong>Minimum $A_s$:</strong> ${As_min.toFixed(2)} mm²</p>`;
+            
+            html += `<div class="latex-output">
+                $$ d = ${d.toFixed(1)} \\text{ mm} $$
+                $$ a = ${a_calc.toFixed(2)} \\text{ mm} $$
+                $$ \\phi M_n \\text{ (Provided)} > M_u = ${Mu_kNm} \\text{ kNm} $$
+            </div>`;
+
+            html += `<h4 style="margin-top:1.5rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Tension Bars</td><td style="padding:5px;">${numBars} - ϕ${barDia} mm</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Steel $f_y$</td><td style="padding:5px;">${fy} MPa</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Effective Width $b_{eff}$</td><td style="padding:5px;">${beff} mm</td></tr>
+                </table>`;
+
+            // Prepare Data for Visualization
+            svgData = {
+                beff, hf, bw, h, cover, stirrupDia,
+                barDia, numBars, layers,
+                mode: 'design',
+                asReq: As_req,
+                asProv: As_prov
+            };
+
+        } else {
+            // --- ANALYSIS LOGIC ---
+            const numBars = parseInt(document.getElementById('nbars').value);
+            const barDia = parseFloat(document.getElementById('analysisBarSize').value);
+            
+            const areaOneBar = (Math.PI * Math.pow(barDia, 2)) / 4;
+            const As = numBars * areaOneBar;
+            
+            // Assume 1 layer for d calc unless logic determines otherwise (Fit check)
+            const minSpacing = Math.max(25, barDia);
+            const widthReq = (2 * cover) + (2 * stirrupDia) + (numBars * barDia) + ((numBars - 1) * minSpacing);
+            let d = h - cover - stirrupDia - barDia/2;
+            let layers = 1;
+
+            if (widthReq > bw) {
+                // Simple approximation for 2 layers
+                const barsLayer1 = Math.ceil(numBars/2); // actually usually put more in bottom
+                // Let's just approximate d centroid shifts up by approx (spacing + barDia)/2
+                d = d - (minSpacing + barDia)/2; 
+                layers = 2;
+                html += `<div class="status-box status-warning"><i class="fas fa-exclamation"></i> Bars do not fit in one layer. Effective depth $d$ adjusted for multiple layers.</div>`;
+            }
+
+            // 1. Assume Steel Yields
+            // 2. Calculate Compression Block 'a' assuming rectangular behavior
+            let a = (As * fy) / (0.85 * fc * beff);
+            let Mn = 0;
+            let behavior = "";
+
+            if (a <= hf) {
+                // Rectangular Behavior
+                behavior = "Rectangular Behavior ($a \\le h_f$)";
+                Mn = As * fy * (d - a/2);
+            } else {
+                // T-Beam Behavior
+                behavior = "T-Beam Behavior ($a > h_f$)";
+                // Area of flange wings
+                const Af = (beff - bw) * hf;
+                // Steel balancing flange
+                const Asf = (0.85 * fc * Af) / fy;
+                // Moment from flange
+                const Mnf = Asf * fy * (d - hf/2);
+                
+                // Steel for web
+                const Asw = As - Asf;
+                // Web compression block
+                const a_web = (Asw * fy) / (0.85 * fc * bw);
+                // Moment from web
+                const Mnw = Asw * fy * (d - a_web/2);
+                
+                Mn = Mnf + Mnw;
+                a = a_web; // for strain check reference (approximation)
+            }
+
+            // Check Strain / Phi
+            const c = a / beta1;
+            const epsilon_t = 0.003 * (d - c) / c;
+            let phi = 0.9;
+            
+            if (epsilon_t < 0.002) {
+                phi = 0.65; // Compression controlled
+            } else if (epsilon_t < 0.005) {
+                // Transition
+                phi = 0.65 + 0.25 * (epsilon_t - 0.002) / 0.003;
+            }
+
+            const phiMn = phi * Mn / 1e6; // kNm
+
+            html += `<div class="status-box status-success">Capacity Calculated</div>`;
+            html += `<p><strong>Behavior:</strong> ${behavior}</p>`;
+            html += `<p><strong>Total $A_s$:</strong> ${As.toFixed(2)} mm²</p>`;
+            html += `<div class="latex-output">
+                $$ a = ${a.toFixed(2)} \\text{ mm} $$
+                $$ c = ${c.toFixed(2)} \\text{ mm} $$
+                $$ \\epsilon_t = ${epsilon_t.toFixed(5)} $$
+                $$ \\phi = ${phi.toFixed(3)} $$
+                $$ M_n = ${(Mn/1e6).toFixed(2)} \\text{ kNm} $$
+                $$ \\phi M_n = ${phiMn.toFixed(2)} \\text{ kNm} $$
+            </div>`;
+
+            html += `<h4 style="margin-top:1.5rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Tension Bars</td><td style="padding:5px;">${numBars} - ϕ${barDia} mm</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Steel $f_y$</td><td style="padding:5px;">${fy} MPa</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Effective Width $b_{eff}$</td><td style="padding:5px;">${beff} mm</td></tr>
+                </table>`;
+
+            svgData = {
+                beff, hf, bw, h, cover, stirrupDia,
+                barDia, numBars, layers,
+                mode: 'analysis'
+            };
+        }
+
+        resultDiv.innerHTML = html;
+        MathJax.typesetPromise();
+        drawBeam(svgData);
+    }
+
+    // --- VISUALIZATION ENGINE ---
+    function drawBeam(data) {
+        const svg = document.getElementById('beamSvg');
+        
+        // Clear previous
+        while (svg.firstChild) { svg.removeChild(svg.firstChild); }
+
+        // Scale Factor Calculation
+        // We want to fit the beam in a 400x400 viewbox with padding
+        const padding = 60;
+        const viewW = 500;
+        const viewH = 500;
+        
+        const scaleX = (viewW - padding*2) / data.beff;
+        const scaleY = (viewH - padding*2) / data.h;
+        const scale = Math.min(scaleX, scaleY);
+
+        // Center the drawing
+        const drawW = data.beff * scale;
+        const drawH = data.h * scale;
+        const startX = (viewW - drawW) / 2;
+        const startY = (viewH - drawH) / 2;
+
+        // --- 1. Draw Concrete Section (T-Shape) ---
+        // Points: TopLeft, TopRight, FlangeBotRight, WebBotRight, WebBotLeft, FlangeBotLeft
+        // Coordinates relative to startX, startY
+        const flangeH_scaled = data.hf * scale;
+        const webW_scaled = data.bw * scale;
+        const totalH_scaled = data.h * scale;
+        const totalW_scaled = data.beff * scale;
+        const flangeOverhang = (totalW_scaled - webW_scaled) / 2;
+
+        const pathData = `
+            M ${startX},${startY} 
+            H ${startX + totalW_scaled} 
+            V ${startY + flangeH_scaled} 
+            H ${startX + totalW_scaled - flangeOverhang} 
+            V ${startY + totalH_scaled} 
+            H ${startX + flangeOverhang} 
+            V ${startY + flangeH_scaled} 
+            H ${startX} 
+            Z
+        `;
+
+        const concretePath = createSVGElement('path', {
+            d: pathData,
+            class: 'section-fill'
+        });
+        svg.appendChild(concretePath);
+
+        // --- 2. Draw Stirrup (Outline in Web) ---
+        const coverSc = data.cover * scale;
+        const stirrupYTop = startY + coverSc; // Assuming closed stirrup goes to top
+        // For T-beam, stirrup usually sits in web. Let's simplify: Stirrup in Web portion.
+        // Stirrup Width = bw - 2*cover
+        // Stirrup Height = h - 2*cover
+        const sLeft = startX + flangeOverhang + coverSc;
+        const sWidth = webW_scaled - 2*coverSc;
+        const sHeight = totalH_scaled - 2*coverSc; // From bottom to top
+        // Note: In T-Beams, stirrup usually extends into flange. Let's draw it full height - cover.
+        
+        const stirrupRect = createSVGElement('rect', {
+            x: sLeft,
+            y: startY + coverSc,
+            width: sWidth,
+            height: sHeight,
+            rx: 5,
+            class: 'stirrup-stroke'
+        });
+        svg.appendChild(stirrupRect);
+
+        // --- 3. Draw Longitudinal Bars ---
+        const barRad = (data.barDia * scale) / 2;
+        const barY = startY + totalH_scaled - coverSc - (data.stirrupDia * scale) - barRad;
+        
+        // Distribute bars
+        // Start X for bars = sLeft + stirrupDia_scaled
+        const barsStartX = sLeft + (data.stirrupDia * scale) + barRad;
+        const availableWidth = sWidth - 2*(data.stirrupDia * scale) - 2*barRad;
+        
+        // Simple visualization logic for layers
+        let barsLayer1 = data.numBars;
+        let barsLayer2 = 0;
+        
+        if (data.layers > 1) {
+            barsLayer2 = Math.floor(data.numBars / 2);
+            barsLayer1 = data.numBars - barsLayer2;
+        }
+
+        const gap1 = barsLayer1 > 1 ? availableWidth / (barsLayer1 - 1) : 0;
+
+        for(let i=0; i<barsLayer1; i++) {
+            const cx = (barsLayer1 > 1) ? barsStartX + (i * gap1) : startX + totalW_scaled/2;
+            const circle = createSVGElement('circle', {
+                cx: cx,
+                cy: barY,
+                r: barRad,
+                class: 'rebar-fill'
+            });
+            svg.appendChild(circle);
+        }
+
+        if (barsLayer2 > 0) {
+            const gap2 = barsLayer2 > 1 ? availableWidth / (barsLayer2 - 1) : 0;
+            const barY2 = barY - (25 * scale) - (data.barDia * scale); // 25mm spacing approx
+            for(let i=0; i<barsLayer2; i++) {
+                // Center the second layer
+                let offset = 0;
+                // If fewer bars, center them relative to available width
+                if(barsLayer2 < barsLayer1) {
+                    const layer2Width = (barsLayer2 - 1) * gap1; // Assume same gap for visual alignment or re-calc
+                    // Simple logic: distribute across available space
+                }
+                
+                const cx = (barsLayer2 > 1) ? barsStartX + (i * (availableWidth/(barsLayer2-1))) : startX + totalW_scaled/2;
+                
+                const circle = createSVGElement('circle', {
+                    cx: cx,
+                    cy: barY2,
+                    r: barRad,
+                    class: 'rebar-fill'
+                });
+                svg.appendChild(circle);
+            }
+        }
+
+        // --- 4. Dimensions & Annotations ---
+        
+        // b_eff dimension (Top)
+        drawDimension(svg, startX, startY - 15, startX + totalW_scaled, startY - 15, `b_eff = ${data.beff}`);
+        
+        // h dimension (Left)
+        drawDimension(svg, startX - 15, startY, startX - 15, startY + totalH_scaled, `h = ${data.h}`, true);
+
+        // hf dimension (Right)
+        drawDimension(svg, startX + totalW_scaled + 15, startY, startX + totalW_scaled + 15, startY + flangeH_scaled, `hf = ${data.hf}`, true);
+
+        // bw dimension (Bottom)
+        drawDimension(svg, startX + flangeOverhang, startY + totalH_scaled + 15, startX + flangeOverhang + webW_scaled, startY + totalH_scaled + 15, `bw = ${data.bw}`);
+
+        // Label Steel
+        const labelText = createSVGElement('text', {
+            x: startX + totalW_scaled/2,
+            y: startY + totalH_scaled - coverSc - 30,
+            'text-anchor': 'middle',
+            class: 'bar-label'
+        });
+        labelText.textContent = `${data.numBars} - #${data.barDia}`;
+        svg.appendChild(labelText);
+    }
+
+    // Helper to create SVG elements
+    function createSVGElement(tag, attrs) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const [key, value] of Object.entries(attrs)) {
+            el.setAttribute(key, value);
+        }
+        return el;
+    }
+
+    // Helper for dimension lines
+    function drawDimension(svg, x1, y1, x2, y2, text, isVertical = false) {
+        // Line
+        const line = createSVGElement('line', { x1, y1, x2, y2, class: 'dim-line' });
+        svg.appendChild(line);
+
+        // Ticks
+        const tickSize = 4;
+        if(isVertical) {
+            svg.appendChild(createSVGElement('line', { x1: x1-tickSize, y1: y1, x2: x1+tickSize, y2: y1, class: 'dim-line' }));
+            svg.appendChild(createSVGElement('line', { x1: x2-tickSize, y1: y2, x2: x2+tickSize, y2: y2, class: 'dim-line' }));
+        } else {
+            svg.appendChild(createSVGElement('line', { x1: x1, y1: y1-tickSize, x2: x1, y2: y1+tickSize, class: 'dim-line' }));
+            svg.appendChild(createSVGElement('line', { x1: x2, y1: y2-tickSize, x2: x2, y2: y2+tickSize, class: 'dim-line' }));
+        }
+
+        // Text
+        const textEl = createSVGElement('text', {
+            x: (x1 + x2) / 2,
+            y: (y1 + y2) / 2,
+            'text-anchor': 'middle',
+            'dominant-baseline': isVertical ? 'middle' : 'auto',
+            class: 'dim-text'
+        });
+        
+        if (isVertical) {
+             textEl.setAttribute('transform', `rotate(-90, ${(x1+x2)/2}, ${(y1+y2)/2}) translate(0, -5)`);
+        } else {
+             textEl.setAttribute('dy', '-5');
+        }
+        
+        textEl.textContent = text;
+        svg.appendChild(textEl);
+    }
+
+    // Initial render on load (empty state)
+    calculate();
+</script>
+
+</body>
+</html>

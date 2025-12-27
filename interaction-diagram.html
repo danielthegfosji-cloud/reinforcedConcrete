@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Short Column Interaction Diagram | RC Design Suite</title>
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js for the Diagram -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- MathJax for LaTex rendering -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .validation-msg {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            display: none;
+        }
+        .validation-msg.error { background-color: rgba(239, 68, 68, 0.2); border: 1px solid var(--error); color: #fca5a5; }
+        .validation-msg.success { background-color: rgba(16, 185, 129, 0.2); border: 1px solid var(--success); color: #6ee7b7; }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 400px; /* Chart area vs Detail/Vis area */
+            grid-template-rows: auto 1fr;
+            gap: 1.5rem;
+        }
+
+        /* Chart Card */
+        .chart-card {
+            grid-column: 1 / 2;
+            grid-row: 2 / 4;
+            min-height: 500px;
+            position: relative;
+        }
+
+        /* Visualization Card */
+        .vis-card {
+            grid-column: 2 / 3;
+            grid-row: 2 / 4;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .viz-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #sectionCanvas {
+            border: 1px dashed #cbd5e1;
+            background-color: #f8fafc;
+            margin-top: 10px;
+        }
+
+        #elevationCanvas {
+            border: 1px dashed #cbd5e1;
+            background-color: #f8fafc;
+            margin-top: 10px;
+        }
+
+        /* Summary Card */
+        .summary-card {
+            grid-column: 2 / 3;
+            grid-row: 4 / 5;
+            font-size: 0.9rem;
+        }
+        
+        .code-check {
+            font-size: 0.8rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+        .pass { background-color: #d1fae5; color: #065f46; }
+        .fail { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Column Properties (SI)</h2>
+
+        <div class="section-header">Materials</div>
+        <div class="form-row">
+            <div class="form-col">
+                <label>Concrete $f'_c$ (MPa)</label>
+                <input type="number" id="fc" value="28" min="17">
+            </div>
+            <div class="form-col">
+                <label>Steel $f_y$ (MPa)</label>
+                <input type="number" id="fy" value="420" min="200">
+            </div>
+        </div>
+        
+        <div class="section-header">Geometry</div>
+        <div class="form-row">
+            <div class="form-col">
+                <label>Width $b$ (mm)</label>
+                <input type="number" id="b" value="400" min="200" step="10">
+            </div>
+            <div class="form-col">
+                <label>Depth $h$ (mm)</label>
+                <input type="number" id="h" value="400" min="200" step="10">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-col">
+                <label>Cover (mm)</label>
+                <input type="number" id="cover" value="40">
+            </div>
+            <div class="form-col">
+                <label>Tie $\phi$ (mm)</label>
+                <select id="tieSize">
+                    <option value="10" selected>10 mm</option>
+                    <option value="12">12 mm</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section-header">Reinforcement</div>
+        <div class="form-group">
+            <label>Longitudinal Bar Size</label>
+            <select id="barSize">
+                <option value="12">12 mm</option>
+                <option value="16">16 mm</option>
+                <option value="20">20 mm</option>
+                <option value="25" selected>25 mm</option>
+                <option value="28">28 mm</option>
+                <option value="32">32 mm</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <div class="form-col">
+                <label>Bars $n_x$ (Width)</label>
+                <input type="number" id="nx" value="3" min="2">
+            </div>
+            <div class="form-col">
+                <label>Bars $n_y$ (Depth)</label>
+                <input type="number" id="ny" value="3" min="2">
+            </div>
+        </div>
+
+        <div class="section-header">Applied Loads</div>
+        <div class="form-group">
+            <label>Axial Load $P_n$ (kN)</label>
+            <input type="number" id="pn_input" value="500">
+        </div>
+        <div class="form-row">
+            <div class="form-col">
+                <label>$M_{nx}$ (kN·m)</label>
+                <input type="number" id="mnx_input" value="50">
+            </div>
+            <div class="form-col">
+                <label>$M_{ny}$ (kN·m)</label>
+                <input type="number" id="mny_input" value="0">
+            </div>
+        </div>
+
+        <button class="calc-btn" onclick="calculate()">
+            <i class="fa-solid fa-calculator"></i> Generate Diagram
+        </button>
+
+        <div id="validationBox" class="validation-msg"></div>
+        </div>
+    </nav>
+
+    <!-- RIGHT CONTENT AREA -->
+    <main class="content-area">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Interaction Diagram</h1>
+            <p>Generate $P_n-M_n$ interaction points for rectangular tied columns based on ACI 318M-11.</p>
+        </div>
+
+        <div class="grid-container">
+            <!-- Plot Card -->
+        <div class="card chart-card">
+            <canvas id="interactionChart"></canvas>
+        </div>
+
+        <!-- Cross Section Visualization -->
+        <div class="card vis-card">
+            <div class="viz-item">
+                <h4>Section Detail</h4>
+                <canvas id="sectionCanvas" width="300" height="300"></canvas>
+            </div>
+            <div class="viz-item">
+                <h4>Column Elevation</h4>
+                <canvas id="elevationCanvas" width="300" height="300"></canvas>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; text-align: center;">
+                    Black dots: Bars | Red line: Ties<br>
+                    Annotations verify code spacing
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Summary -->
+        <div class="card summary-card">
+            <h4>Detailed Results Summary</h4>
+            <div id="resultsContainer">
+                <p style="color:var(--text-muted); padding: 1rem; text-align: center;">Click "Generate Diagram" to see results.</p>
+            </div>
+        </div>
+        </div>
+    </main>
+
+    <script>
+        // Global Chart Instance
+        let myChart = null;
+
+        // --- Helper: Get Area of Bar ---
+        function getBarArea(d) {
+            return (Math.PI * Math.pow(d, 2)) / 4;
+        }
+
+        // --- Helper: Beta1 Calculation (ACI 318M-11 10.2.7.3) ---
+        function getBeta1(fc) {
+            if (fc <= 28) return 0.85;
+            let beta = 0.85 - 0.05 * (fc - 28) / 7;
+            return Math.max(0.65, beta);
+        }
+
+        // --- MAIN CALCULATION FUNCTION ---
+        function calculate() {
+            // 1. Get Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const b = parseFloat(document.getElementById('b').value);
+            const h = parseFloat(document.getElementById('h').value);
+            const cover = parseFloat(document.getElementById('cover').value);
+            const barDia = parseFloat(document.getElementById('barSize').value);
+            const tieDia = parseFloat(document.getElementById('tieSize').value);
+            const nx = parseInt(document.getElementById('nx').value); // Bars in row along width
+            const ny = parseInt(document.getElementById('ny').value); // Bars in col along depth
+
+            const Pn_in = parseFloat(document.getElementById('pn_input').value) || 0;
+            const Mnx_in = parseFloat(document.getElementById('mnx_input').value) || 0;
+            const Mny_in = parseFloat(document.getElementById('mny_input').value) || 0;
+            const M_res = Math.sqrt(Mnx_in**2 + Mny_in**2);
+
+            const validationBox = document.getElementById('validationBox');
+
+            // 2. Geometry & Reinforcement Logic
+            // Total bars = 2*nx + 2*(ny-2)
+            const totalBars = 2 * nx + 2 * (ny - 2);
+            const barArea = getBarArea(barDia);
+            const Ast = totalBars * barArea;
+            const Ag = b * h;
+            const rho = Ast / Ag;
+
+            // 3. Validation / Sanity Checks
+            let errors = [];
+            
+            // Code Check: Steel Percentage (ACI 10.9.1: 1% to 8%)
+            if (rho < 0.01) errors.push(`Reinforcement Ratio (${(rho*100).toFixed(2)}%) is below min 1%.`);
+            if (rho > 0.08) errors.push(`Reinforcement Ratio (${(rho*100).toFixed(2)}%) exceeds max 8%.`);
+
+            // Code Check: Spacing
+            // Effective depth to center of outer bars
+            const d_prime = cover + tieDia + barDia/2; // dist to center of bar
+            const eff_d = h - d_prime; // effective depth
+
+            // Calculate clear spacing in X direction
+            const widthAvailableX = b - 2*(cover + tieDia) - barDia;
+            const spacesX = nx - 1;
+            const clearSpacingX = (widthAvailableX / spacesX) - barDia;
+
+            // Calculate clear spacing in Y direction
+            const widthAvailableY = h - 2*(cover + tieDia) - barDia;
+            const spacesY = ny - 1;
+            const clearSpacingY = (widthAvailableY / spacesY) - barDia;
+
+            // ACI Min spacing: max(1.5*db, 40mm) roughly converted for SI
+            const minSpacing = Math.max(1.5 * barDia, 40); 
+            
+            if (clearSpacingX < minSpacing) errors.push(`Clear spacing X (${clearSpacingX.toFixed(1)} mm) is too tight. Code req: ${minSpacing.toFixed(1)} mm.`);
+            if (clearSpacingY < minSpacing && ny > 1) errors.push(`Clear spacing Y (${clearSpacingY.toFixed(1)} mm) is too tight. Code req: ${minSpacing.toFixed(1)} mm.`);
+
+            if (errors.length > 0) {
+                validationBox.innerHTML = "<strong>Issues Found:</strong><br>" + errors.join("<br>");
+                validationBox.className = "validation-msg error";
+                validationBox.style.display = "block";
+                // We still calculate, but warn user
+            } else {
+                validationBox.innerHTML = "<i class='fa-solid fa-check'></i> Design checks passed.";
+                validationBox.className = "validation-msg success";
+                validationBox.style.display = "block";
+            }
+
+            // 4. Generate Interaction Points
+            // Define steel layers relative to centroid
+            // Centroid is at h/2
+            const layers = []; // { y: distance from centroid, As: area }
+            
+            // Top Row
+            layers.push({ y: h/2 - d_prime, As: nx * barArea });
+            // Bottom Row
+            layers.push({ y: -(h/2 - d_prime), As: nx * barArea });
+            
+            // Side Bars (intermediate layers)
+            // Distribute (ny - 2) rows between top and bottom
+            if (ny > 2) {
+                const intermediateRows = ny - 2;
+                const verticalSpace = h - 2*d_prime;
+                const step = verticalSpace / (ny - 1);
+                
+                for(let i=1; i<=intermediateRows; i++) {
+                    // Position relative to top bar center
+                    const posFromTop = d_prime + i*step;
+                    const y = h/2 - posFromTop;
+                    layers.push({ y: y, As: 2 * barArea }); // 2 bars per intermediate row
+                }
+            }
+
+            const points_nominal = []; // {x: Mn, y: Pn}
+            const points_design = [];  // {x: phi*Mn, y: phi*Pn}
+
+            const Es = 200000; // MPa
+            const beta1 = getBeta1(fc);
+            const ec_lim = 0.003; // ACI concrete strain limit
+
+            // Loop c (neutral axis depth) from very small to very large
+            // c values to iterate: Pure tension -> Balance -> Pure compression
+            
+            // Define key c values
+            const d_t = h - d_prime; // Depth to extreme tension steel
+            const c_bal = (ec_lim / (ec_lim + (fy/Es))) * d_t;
+            
+            let c_values = [
+                0.1, // Near pure tension
+                d_prime,
+                c_bal * 0.5,
+                c_bal,
+                c_bal * 1.5,
+                h,
+                h * 2,
+                99999 // Pure compression approximation
+            ];
+            
+            // Sort and add intermediate steps for smoothness
+            for(let i=0; i<30; i++) {
+                c_values.push(d_t * (0.1 + 0.9*i/30));
+            }
+            c_values.sort((a,b) => a-b);
+
+            // 5. Calculation Loop
+            c_values.forEach(c => {
+                let Pn = 0;
+                let Mn = 0;
+
+                // Concrete force
+                // a = beta1 * c. If a > h, limit to h.
+                let a = beta1 * c;
+                if (a > h) a = h;
+
+                const Cc = 0.85 * fc * a * b; // Compression in concrete
+                // Centroid of concrete block is a/2 from top, or h/2 - a/2 from section centroid
+                const y_conc = h/2 - a/2;
+
+                Pn += Cc;
+                Mn += Cc * y_conc;
+
+                // Steel forces
+                let strain_t = 0; // Strain in extreme tension steel
+
+                layers.forEach(layer => {
+                    // Calculate strain based on linear distribution
+                    // dist from c to layer. Layer y is from centroid (+ is up).
+                    // Top fiber is at y = h/2. NA is at y = h/2 - c.
+                    // dist from NA = layer.y - (h/2 - c) = layer.y - h/2 + c
+                    // This logic is tricky. Let's use depth d_i from top.
+                    const d_i = h/2 - layer.y;
+                    const epsilon_s = ec_lim * (c - d_i) / c;
+
+                    // Stress
+                    let fs = epsilon_s * Es;
+                    if (fs > fy) fs = fy;
+                    if (fs < -fy) fs = -fy;
+
+                    // Subtract concrete area displaced by compression steel? 
+                    // ACI usually allows neglecting it or 0.85fc subtraction. Let's keep it simple (gross concrete area used above, so standard approach is usually subtract 0.85fc if refinement needed, but often neglected in basic diagrams. Let's subtract for accuracy).
+                    let force = fs * layer.As;
+                    
+                    if (epsilon_s > 0 && c < h) { // In compression zone
+                        // Correction for displaced concrete
+                        force -= 0.85 * fc * layer.As;
+                    }
+
+                    Pn += force;
+                    Mn += force * layer.y; // Moment about plastic centroid (geometric centroid for symm)
+
+                    // Track extreme tension strain for Phi
+                    // Extreme tension steel is at bottom: d_t
+                    if (d_i >= d_t - 1) { // tolerance
+                         strain_t = Math.abs(ec_lim * (d_t - c) / c);
+                    }
+                });
+
+                // Calculate Phi
+                let phi = 0.65;
+                const et_yield = fy / Es;
+                const et_tension = 0.005;
+
+                if (c >= 9999) {
+                     // Pure compression
+                     phi = 0.65;
+                     strain_t = 0;
+                } else {
+                     // Calculate actual strain at extreme tension layer
+                     const actual_et = Math.abs(ec_lim * (d_t - c) / c);
+                     
+                     if (actual_et <= et_yield) {
+                         phi = 0.65;
+                     } else if (actual_et >= et_tension) {
+                         phi = 0.90;
+                     } else {
+                         // Transition
+                         phi = 0.65 + 0.25 * (actual_et - et_yield) / (et_tension - et_yield);
+                     }
+                }
+
+                // SI Convention: P in kN, M in kNm
+                const P_kN = Pn / 1000;
+                const M_kNm = Mn / 1000 / 1000;
+
+                // Max Axial Load Cap (ACI 10.3.6.2 - Tied)
+                // Pn_max = 0.80 * P0
+                // This clipping happens on the graph, but let's calculate P0 for reference
+                
+                points_nominal.push({ x: M_kNm, y: P_kN, c: c });
+                points_design.push({ x: M_kNm * phi, y: P_kN * phi, phi: phi });
+            });
+
+            // Calculate P0 (Pure Axial) for clipping
+            const Ast_total = layers.reduce((sum, l) => sum + l.As, 0);
+            const P0 = 0.85 * fc * (Ag - Ast_total) + fy * Ast_total;
+            const Pn_max = 0.80 * P0;
+            const PhiPn_max = 0.65 * Pn_max;
+
+            // Clip charts
+            // This is a visualization trick. We modify points that exceed max P
+            const design_clipped = points_design.map(p => ({
+                x: p.x,
+                y: Math.min(p.y, PhiPn_max / 1000)
+            }));
+
+            // 6. Draw Visualization
+            drawSection(b, h, cover, tieDia, barDia, nx, ny);
+            drawElevation(b, h, cover, tieDia, barDia, nx, ny);
+
+            // 7. Capacity Check
+            let checkResult = { pass: false, msg: "No Load Applied", ratio: 0, Mcap: 0 };
+            if (Pn_in !== 0 || M_res !== 0) {
+                if (Pn_in > PhiPn_max / 1000) {
+                    checkResult = { pass: false, msg: "Fail: Axial load exceeds $\\phi P_{n,max}$", ratio: Pn_in / (PhiPn_max / 1000) };
+                } else {
+                    // Find interpolation on the design curve
+                    let p1 = null, p2 = null;
+                    for (let i = 0; i < points_design.length - 1; i++) {
+                        const ptA = points_design[i];
+                        const ptB = points_design[i+1];
+                        if ((ptA.y <= Pn_in && ptB.y >= Pn_in) || (ptA.y >= Pn_in && ptB.y <= Pn_in)) {
+                            p1 = ptA;
+                            p2 = ptB;
+                        }
+                    }
+
+                    if (p1 && p2) {
+                        let Mcap = p1.x;
+                        if (Math.abs(p2.y - p1.y) > 1e-6) {
+                            Mcap = p1.x + (p2.x - p1.x) * (Pn_in - p1.y) / (p2.y - p1.y);
+                        }
+                        const ratio = Mcap > 0 ? M_res / Mcap : (M_res > 0 ? Infinity : 0);
+                        if (M_res <= Mcap + 0.01) {
+                            checkResult = { pass: true, msg: "Pass: Load point is within capacity", ratio: ratio, Mcap: Mcap };
+                        } else {
+                            checkResult = { pass: false, msg: "Fail: Load point exceeds capacity", ratio: ratio, Mcap: Mcap };
+                        }
+                    } else {
+                        checkResult = { pass: false, msg: "Fail: Load point outside axial range", ratio: 0 };
+                    }
+                }
+            }
+
+            // 8. Update Chart
+            updateChart(points_nominal, design_clipped, {x: M_res, y: Pn_in});
+
+            // 9. Update Summary
+            // Find key points for summary
+            const pureMoment = design_clipped.find(p => Math.abs(p.y) < 5); // Approx 0
+            // Find max moment
+            const maxMomentPt = design_clipped.reduce((prev, current) => (prev.x > current.x) ? prev : current);
+
+            let html = `
+                <div class="status-box" style="padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600; border: 1px solid ${checkResult.pass ? 'var(--success)' : 'var(--error)'}; background: ${checkResult.pass ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'}; color: ${checkResult.pass ? '#065f46' : '#991b1b'};">
+                    <i class="fa-solid ${checkResult.pass ? 'fa-circle-check' : 'fa-circle-xmark'}"></i> ${checkResult.msg}
+                    ${checkResult.ratio > 0 ? `<br><small style="font-weight:400; opacity:0.8;">Demand/Capacity Ratio: ${checkResult.ratio.toFixed(3)}</small>` : ''}
+                </div>
+
+                <div class="result-row">
+                    <span class="result-label">Max Axial Capacity ($\\phi P_{n,max}$):</span>
+                    <span class="result-value">${(PhiPn_max/1000).toFixed(1)} kN</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Pure Moment Capacity ($\\phi M_{n}$):</span>
+                    <span class="result-value">${pureMoment ? pureMoment.x.toFixed(1) : 'N/A'} kN·m</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Max Moment in Curve:</span>
+                    <span class="result-value">${maxMomentPt.x.toFixed(1)} kN·m</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Steel Area Provided ($A_{st}$):</span>
+                    <span class="result-value">${(Ast).toFixed(0)} mm²</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Reinforcement Ratio ($\\rho_g$):</span>
+                    <div>
+                        <span class="result-value">${(rho*100).toFixed(2)}%</span>
+                        <span class="code-check ${rho >= 0.01 && rho <= 0.08 ? 'pass' : 'fail'}">
+                            ${rho >= 0.01 && rho <= 0.08 ? 'OK' : 'FAIL'}
+                        </span>
+                    </div>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Tie Spacing Req (ACI):</span>
+                    <span class="result-value">
+                        Min of: $${16*barDia} \\text{ mm}$, $${48*tieDia} \\text{ mm}$, $${Math.min(b,h)} \\text{ mm}$
+                    </span>
+                </div>
+                <h4 style="margin-top:1.5rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
+                <div class="result-row"><span class="result-label">Total Bars:</span><span class="result-value">${totalBars} - ϕ${barDia} mm</span></div>
+                <div class="result-row"><span class="result-label">Tie Size:</span><span class="result-value">ϕ${tieDia} mm</span></div>
+                <div class="result-row"><span class="result-label">Concrete $f'_c$:</span><span class="result-value">${fc} MPa</span></div>
+                <div class="result-row"><span class="result-label">Steel $f_y$:</span><span class="result-value">${fy} MPa</span></div>
+                <div class="result-row"><span class="result-label">Column Size:</span><span class="result-value">${b} x ${h} mm</span></div>
+            `;
+            document.getElementById('resultsContainer').innerHTML = html;
+            
+            // Re-render Latex
+            if (window.MathJax && window.MathJax.typesetPromise) MathJax.typesetPromise();
+        }
+
+        // --- VISUALIZATION FUNCTION ---
+        function drawSection(b, h, cover, tieDia, barDia, nx, ny) {
+            const canvas = document.getElementById('sectionCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Scale logic
+            const padding = 40;
+            const maxDim = Math.max(b, h);
+            const scale = (canvas.width - 2*padding) / maxDim;
+
+            const drawW = b * scale;
+            const drawH = h * scale;
+            const startX = (canvas.width - drawW) / 2;
+            const startY = (canvas.height - drawH) / 2;
+
+            // Draw Concrete
+            ctx.fillStyle = "#e2e8f0";
+            ctx.strokeStyle = "#475569";
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, drawW, drawH);
+            ctx.strokeRect(startX, startY, drawW, drawH);
+
+            // Draw Ties (Red line)
+            const tieOffset = cover * scale; // Center of tie is roughly cover
+            ctx.strokeStyle = "#ef4444";
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 3]);
+            ctx.strokeRect(startX + tieOffset, startY + tieOffset, drawW - 2*tieOffset, drawH - 2*tieOffset);
+            ctx.setLineDash([]);
+
+            // Draw Bars (Black dots)
+            ctx.fillStyle = "#0f172a";
+            const d_prime = (cover + tieDia + barDia/2) * scale;
+            
+            // Calculate coordinates for all bars
+            const bars = [];
+            
+            // Top and Bottom Rows
+            const xSpace = (drawW - 2*d_prime) / (nx - 1);
+            for(let i=0; i<nx; i++) {
+                bars.push({x: startX + d_prime + i*xSpace, y: startY + d_prime}); // Top
+                bars.push({x: startX + d_prime + i*xSpace, y: startY + drawH - d_prime}); // Bottom
+            }
+
+            // Side Rows
+            if (ny > 2) {
+                const ySpace = (drawH - 2*d_prime) / (ny - 1);
+                for(let j=1; j<ny-1; j++) {
+                    bars.push({x: startX + d_prime, y: startY + d_prime + j*ySpace}); // Left
+                    bars.push({x: startX + drawW - d_prime, y: startY + d_prime + j*ySpace}); // Right
+                }
+            }
+
+            // Draw dots
+            const radius = Math.max(2, (barDia * scale) / 2);
+            bars.forEach(bar => {
+                ctx.beginPath();
+                ctx.arc(bar.x, bar.y, radius, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+
+            // Dimensions Text
+            ctx.fillStyle = "#64748b";
+            ctx.font = "12px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(`${b} mm`, canvas.width/2, startY - 10);
+            
+            ctx.save();
+            ctx.translate(startX - 15, canvas.height/2);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText(`${h} mm`, 0, 0);
+            ctx.restore();
+        }
+
+        // --- ELEVATION VISUALIZATION ---
+        function drawElevation(b, h, cover, tieDia, barDia, nx, ny) {
+            const canvas = document.getElementById('elevationCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const padding = 40;
+            const scale = (canvas.height - 2*padding) / h;
+            
+            const drawW = b * scale * 0.6; // Narrower for elevation
+            const drawH = h * scale;
+            const startX = (canvas.width - drawW) / 2;
+            const startY = (canvas.height - drawH) / 2;
+
+            // Draw Concrete
+            ctx.fillStyle = "#e2e8f0";
+            ctx.strokeStyle = "#475569";
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, drawW, drawH);
+            ctx.strokeRect(startX, startY, drawW, drawH);
+
+            // Draw Longitudinal Bars
+            ctx.strokeStyle = "#0f172a";
+            ctx.lineWidth = Math.max(1, barDia * scale / 4);
+            
+            const d_prime = (cover + tieDia + barDia/2) * scale;
+            const barX_left = startX + d_prime * (drawW / (b * scale));
+            const barX_right = startX + drawW - d_prime * (drawW / (b * scale));
+
+            // Draw outer bars
+            ctx.beginPath();
+            ctx.moveTo(barX_left, startY); ctx.lineTo(barX_left, startY + drawH);
+            ctx.moveTo(barX_right, startY); ctx.lineTo(barX_right, startY + drawH);
+            ctx.stroke();
+
+            // Draw intermediate bars if any (simplified)
+            if (nx > 2) {
+                const xSpace = (barX_right - barX_left) / (nx - 1);
+                for(let i=1; i<nx-1; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(barX_left + i*xSpace, startY);
+                    ctx.lineTo(barX_left + i*xSpace, startY + drawH);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Ties
+            ctx.strokeStyle = "#ef4444";
+            ctx.lineWidth = 1.5;
+            
+            // Tie spacing (simplified for visualization)
+            const s_req = Math.min(16*barDia, 48*tieDia, Math.min(b,h));
+            const s_px = s_req * scale;
+            
+            for(let y = startY + s_px; y < startY + drawH; y += s_px) {
+                ctx.beginPath();
+                ctx.moveTo(startX + (cover*scale * (drawW/(b*scale))), y);
+                ctx.lineTo(startX + drawW - (cover*scale * (drawW/(b*scale))), y);
+                ctx.stroke();
+            }
+
+            // Labels
+            ctx.fillStyle = "#64748b";
+            ctx.font = "12px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(`Elevation (h=${h}mm)`, canvas.width/2, startY - 10);
+            
+            ctx.save();
+            ctx.translate(startX - 15, canvas.height/2);
+            ctx.rotate(-Math.PI/2);
+            ctx.restore();
+        }
+
+        // --- CHART FUNCTION ---
+        function updateChart(nominalPts, designPts, userPoint) {
+            const ctx = document.getElementById('interactionChart').getContext('2d');
+
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            // Filter out negative P values if desired, or keep to show tension capacity
+            // Usually columns focus on compression side
+            
+            const datasets = [
+                {
+                    label: 'Nominal Strength (Pn)',
+                    data: nominalPts,
+                    borderColor: '#94a3b8',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    showLine: true,
+                    borderDash: [5, 5],
+                    pointRadius: 0
+                },
+                {
+                    label: 'Design Strength (φPn)',
+                    data: designPts,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 3,
+                    showLine: true,
+                    pointRadius: 0,
+                    fill: true
+                }
+            ];
+
+            if (userPoint) {
+                datasets.push({
+                    label: 'Applied Load Point',
+                    data: [userPoint],
+                    borderColor: '#ef4444',
+                    backgroundColor: '#ef4444',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: false
+                });
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Moment (kN·m)' },
+                            min: 0
+                        },
+                        y: {
+                            title: { display: true, text: 'Axial Load (kN)' }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `(${context.parsed.x.toFixed(1)}, ${context.parsed.y.toFixed(1)})`;
+                                }
+                            }
+                        },
+                        annotation: {
+                            // Can use chartjs-plugin-annotation for extra lines like Pmax
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize with default values on load
+        window.onload = function() {
+            calculate();
+        };
+
+    </script>
+</body>
+</html>

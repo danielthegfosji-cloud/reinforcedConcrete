@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combined Footing Design | RC Design Suite</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* Visualization */
+        .canvas-container {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas { max-width: 100%; box-shadow: inset 0 0 20px #f8fafc; border: 1px solid #eee; border-radius: 8px; }
+
+        .result-header { font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-main); display: flex; align-items: center; gap: 10px; }
+        
+        .status-box {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-ok { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status-fail { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+        .calc-step { margin-bottom: 1.5rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 1rem; }
+        .step-title { font-weight: 700; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; }
+        .step-content { font-size: 0.95rem; line-height: 1.6; }
+
+        /* Table */
+        .reinf-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+        .reinf-table th { background-color: #f8fafc; padding: 0.75rem; text-align: left; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border-color); }
+        .reinf-table td { padding: 0.75rem; border-bottom: 1px solid var(--border-color); }
+        .reinf-table tr:last-child td { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Footing Properties</h2>
+            
+            <form id="designForm">
+                <div class="section-header">Column 1 (Exterior)</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Dead $P_{D1}$ (kN)</label>
+                        <input type="number" id="pd1" value="500">
+                    </div>
+                    <div class="form-col">
+                        <label>Live $P_{L1}$ (kN)</label>
+                        <input type="number" id="pl1" value="350">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Size $C_1$ (mm)</label>
+                        <input type="number" id="c1" value="400">
+                    </div>
+                    <div class="form-col">
+                        <label>Edge Dist (mm)</label>
+                        <input type="number" id="edgeDist" value="200">
+                    </div>
+                </div>
+
+                <div class="section-header">Column 2 (Interior)</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Dead $P_{D2}$ (kN)</label>
+                        <input type="number" id="pd2" value="800">
+                    </div>
+                    <div class="form-col">
+                        <label>Live $P_{L2}$ (kN)</label>
+                        <input type="number" id="pl2" value="600">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Column Size $C_2$ (mm)</label>
+                    <input type="number" id="c2" value="500">
+                </div>
+
+                <div class="section-header">Geometry & Soil</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Spacing (m)</label>
+                        <input type="number" id="spacing" value="4.5" step="0.1">
+                    </div>
+                    <div class="form-col">
+                        <label>Soil $q_a$ (kPa)</label>
+                        <input type="number" id="qa" value="180">
+                    </div>
+                    <div class="form-col">
+                        <label>Soil Density (kN/m³)</label>
+                        <input type="number" id="gamma_s" value="16">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Depth $h$ (mm)</label>
+                        <input type="number" id="h_ftg" value="600">
+                    </div>
+                    <div class="form-col">
+                        <label>Base $D_f$ (m)</label>
+                        <input type="number" id="depth_base" value="1.5" step="0.1">
+                    </div>
+                </div>
+
+                <div class="section-header">Materials</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Concrete $f'_c$</label>
+                        <input type="number" id="fc" value="28">
+                    </div>
+                    <div class="form-col">
+                        <label>Steel $f_y$</label>
+                        <input type="number" id="fy" value="420">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Main Bar Size</label>
+                    <select id="barSize">
+                        <option value="16">16 mm</option>
+                        <option value="20">20 mm</option>
+                        <option value="25" selected>25 mm</option>
+                        <option value="30">30 mm</option>
+                        <option value="32">32 mm</option>
+                    </select>
+                </div>
+
+                <div class="section-header">Visualization</div>
+                <div class="input-group" style="background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main);">
+                            <input type="checkbox" id="showTopLong" checked onchange="calculate()" style="width: auto;"> Top Longitudinal
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main);">
+                            <input type="checkbox" id="showTopTrans" checked onchange="calculate()" style="width: auto;"> Top Transverse
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main);">
+                            <input type="checkbox" id="showBotTrans" checked onchange="calculate()" style="width: auto;"> Bottom Transverse
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-main);">
+                            <input type="checkbox" id="showBotLong" checked onchange="calculate()" style="width: auto;"> Bottom Longitudinal
+                        </label>
+                    </div>
+                </div>
+
+                <button type="button" class="calc-btn" onclick="calculate()">Design Footing</button>
+            </form>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="output-area">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Combined Footing Design</h1>
+            <p>Design rectangular combined footings for two columns. Ensures uniform soil pressure and checks shear and flexural capacity.</p>
+        </div>
+
+            
+            <!-- Visualization -->
+            <div class="canvas-container">
+                <canvas id="footingCanvas" width="800" height="400"></canvas>
+            </div>
+
+            <!-- Detailed Results -->
+            <div id="results" class="card" style="display:none;">
+                <div class="result-header">
+                    <i class="fa-solid fa-clipboard-check"></i> Design Summary
+                </div>
+                
+                <div id="statusBox" class="status-box"></div>
+
+                <div class="calc-step">
+                    <div class="step-title">1. Loads & Geometry</div>
+                    <div class="step-content" id="step1"></div>
+                </div>
+
+                <div class="calc-step">
+                    <div class="step-title">2. Soil Pressure & Dimensions</div>
+                    <div class="step-content" id="step2"></div>
+                </div>
+
+                <div class="calc-step">
+                    <div class="step-title">3. Shear & Moment Analysis</div>
+                    <div class="step-content" id="step3"></div>
+                </div>
+
+                <div class="calc-step">
+                    <div class="step-title">4. Flexural Design (Longitudinal)</div>
+                    <div class="step-content" id="step4"></div>
+                </div>
+                 
+                <div class="calc-step">
+                    <div class="step-title">5. Transverse Design (Under Columns)</div>
+                    <div class="step-content" id="step5"></div>
+                </div>
+
+                <div class="step-title">Reinforcement Schedule</div>
+                <table class="reinf-table">
+                    <thead>
+                        <tr>
+                            <th>Location</th>
+                            <th>Direction</th>
+                            <th>Bar Size</th>
+                            <th>Spacing / Qty</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reinfTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+    </main>
+
+    <script>
+        // SI Bar Properties
+        const bars = {
+            10: { area: 100, diam: 11.3 },
+            16: { area: 200, diam: 16.0 },
+            20: { area: 300, diam: 19.5 },
+            25: { area: 500, diam: 25.2 },
+            30: { area: 700, diam: 29.9 },
+            32: { area: 819, diam: 32.3 }, // Using ACI metric soft conversion approximation for table display logic
+            36: { area: 1000, diam: 35.8 }
+        };
+
+        function calculate() {
+            // 1. Get Inputs
+            const PD1 = parseFloat(document.getElementById('pd1').value);
+            const PL1 = parseFloat(document.getElementById('pl1').value);
+            const C1 = parseFloat(document.getElementById('c1').value) / 1000; // m
+            const edgeDist = parseFloat(document.getElementById('edgeDist').value) / 1000; // m
+
+            const PD2 = parseFloat(document.getElementById('pd2').value);
+            const PL2 = parseFloat(document.getElementById('pl2').value);
+            const C2 = parseFloat(document.getElementById('c2').value) / 1000; // m
+
+            const spacing = parseFloat(document.getElementById('spacing').value); // m
+            const qa = parseFloat(document.getElementById('qa').value); // kPa
+            const h = parseFloat(document.getElementById('h_ftg').value) / 1000; // m
+            const gammaS = parseFloat(document.getElementById('gamma_s').value); // kN/m3
+            const Df = parseFloat(document.getElementById('depth_base').value); // m
+            const fc = parseFloat(document.getElementById('fc').value); // MPa
+            const fy = parseFloat(document.getElementById('fy').value); // MPa
+            const mainBarSize = parseInt(document.getElementById('barSize').value);
+
+            // Constants
+            const gammaC = 24; // kN/m3
+            const phiShear = 0.75;
+            const phiFlex = 0.90;
+            const cover = 0.075; // 75mm cover for earth contact
+            
+            // 2. Service Loads & Net Allowable Pressure
+            const P1_service = PD1 + PL1;
+            const P2_service = PD2 + PL2;
+            const R_service = P1_service + P2_service;
+
+            // Calculate Effective Soil Pressure q_e
+            // q_e = q_a - (wt of concrete) - (wt of soil above footing)
+            const wt_conc = h * gammaC;
+            const wt_soil = (Df - h) * gammaS;
+            const qe = qa - wt_conc - wt_soil;
+
+            // 3. Geometry (Centroids)
+            // Datum is Center of Col 1
+            const moment_service_col1 = P2_service * spacing;
+            const x_resultant = moment_service_col1 / R_service; // Dist from Col 1 to Resultant
+
+            // Distance from Property Line (Left Edge) to Resultant
+            const dist_edge_to_col1 = edgeDist + C1/2; // Actually edgeDist is usually clear distance or centerline. Assuming input is CL to Prop Line. 
+            // Let's assume input "Dist to Property Line" means CL of Col 1 to Property Line based on diagram logic
+            const dist_PL_to_R = dist_edge_to_col1 + x_resultant;
+
+            // To have uniform pressure, Resultant must be at L/2
+            const L = 2 * dist_PL_to_R;
+            
+            // Required Area & Width
+            const A_req = R_service / qe;
+            const B_req = A_req / L;
+            
+            // Round B up to nearest 0.05m
+            const B = Math.ceil(B_req * 20) / 20;
+            const Area_final = B * L;
+
+            // 4. Factored Loads
+            const Pu1 = 1.2*PD1 + 1.6*PL1;
+            const Pu2 = 1.2*PD2 + 1.6*PL2;
+            const Ru = Pu1 + Pu2;
+            
+            // Ultimate Soil Pressure (Line load for longitudinal design)
+            const qu_line = Ru / L; // kN/m
+            const qu_area = Ru / Area_final; // kPa
+
+            // 5. Shear & Moment Analysis (Longitudinal)
+            // Simplified points: Left Edge, Col 1, Zero Shear Point, Col 2, Right Edge
+            // Left Overhang length
+            const L_left = dist_edge_to_col1; // from CL Col 1
+            const L_right = L - spacing - L_left; // from CL Col 2
+            
+            // Max Negative Moment (between columns)
+            // Locate zero shear from left col (x_0)
+            // V(x) = -Pu1 + qu_line * (L_left + x) = 0
+            // qu_line * (L_left + x) = Pu1 => x = Pu1/qu_line - L_left
+            const x_zero_shear = (Pu1 / qu_line) - L_left;
+            
+            // Moment at zero shear (from left edge)
+            // M = (qu_line * dist^2)/2 - Pu1 * (dist - L_left) where dist = L_left + x_zero_shear
+            const dist_zero = L_left + x_zero_shear;
+            const Mu_neg = (qu_line * Math.pow(dist_zero, 2) / 2) - Pu1 * x_zero_shear;
+
+            // Moment at Col faces (Approximate for design) - Often simplified to CL moments then reduced
+            // Let's use rigorous calculation at face of columns for cantilever moments
+            // Cantilever Moment at Face of Col 1 (if cantilever exists to left)
+            // Actually, usually combined footing has small projection left.
+            // Let's treat the span between columns.
+            // Max Positive Moment (Transverse) - Later.
+
+            // Longitudinal Design Moment (Negative - Top Steel)
+            // We use Mu_neg calculated above. 
+
+            // 6. Thickness Check (One-way Shear)
+            const d = h - cover - (bars[mainBarSize].diam/1000) * 1.5; // Approx d
+            
+            // Shear at d from face of column 1 (towards col 2)
+            // V_d = Shear at CL - qu_line * (c1/2 + d)
+            // Shear just right of Col 1 = -Pu1 + qu_line * L_left
+            const V_right_col1 = -Pu1 + qu_line * L_left;
+            const V_crit = Math.abs(V_right_col1 + qu_line * (C1/2 + d));
+
+            // Capacity
+            const Vc = 0.17 * 1.0 * Math.sqrt(fc) * (B * 1000) * (d * 1000) / 1000; // kN (Lambda=1)
+            const phiVc = phiShear * Vc;
+
+            // 7. Punching Shear Check (Two-way)
+            // Perimeter b0 for Col 2 (usually heaviest)
+            const d_eff = d; 
+            const b0 = 2 * (C2 + d_eff) + 2 * (C2 + d_eff); // Interior col assumption
+            const beta_c = C2/C2; // Square
+            const alpha_s = 40; // Interior
+
+            // Vc1 (Basic) = 0.33 sqrt(fc) b0 d
+            const Vc_punch1 = 0.33 * Math.sqrt(fc) * (b0*1000) * (d*1000) / 1000;
+            const phiVc_punch = phiShear * Vc_punch1; // Simplified, usually controls
+
+            const Vu_punch = Pu2 - (qu_area * (C2+d)*(C2+d)); // Approximate uplift subtracted
+
+            // 8. Longitudinal Steel (Top)
+            // Mu_neg is in kN-m. 
+            const Rn = (Math.abs(Mu_neg) * 1e6) / (0.9 * (B*1000) * Math.pow(d*1000, 2)); // MPa
+            const rho_req = (0.85 * fc / fy) * (1 - Math.sqrt(1 - (2 * Rn) / (0.85 * fc)));
+            const As_req_long = Math.max(rho_req * (B*1000) * (d*1000), 0.0018 * (B*1000) * (h*1000)); // Min steel check
+            
+            // Bar Selection
+            const barArea = bars[mainBarSize].area;
+            const numBars = Math.ceil(As_req_long / barArea);
+
+            // Sanity Check: Spacing
+            const spacing_avail = ((B*1000) - 2*75) / (numBars - 1);
+            const clear_spacing = spacing_avail - bars[mainBarSize].diam;
+            const min_clear_spacing = Math.max(bars[mainBarSize].diam, 25);
+            
+            // 9. Transverse Steel (Under Columns)
+            // Treat as cantilever beam of width C + d or similar.
+            // Transverse moment M_trans = (qu_area * B_cant^2 / 2) * Width_strip
+            const cantilever_len = (B - C2) / 2;
+            const Mu_trans = (qu_area * Math.pow(cantilever_len, 2) / 2); // kNm per meter width
+            
+            // Design strip width under Col 2 (Usually larger load)
+            const strip_width = C2 + 0.75 * d; // Conservative effective width
+            const Mu_trans_design = Mu_trans * 1.0; // Per meter strip analysis is easier
+            
+            const Rn_trans = (Mu_trans_design * 1e6) / (0.9 * 1000 * Math.pow(d*1000, 2));
+            const rho_trans = (0.85 * fc / fy) * (1 - Math.sqrt(1 - (2 * Rn_trans) / (0.85 * fc)));
+            const As_trans_m = Math.max(rho_trans * 1000 * (d*1000), 0.0018 * 1000 * (h*1000));
+            
+            const spacing_trans = Math.floor(1000 / (As_trans_m / barArea) / 10) * 10; // Round down to 10mm
+
+            // --- RENDER RESULTS ---
+            
+            // Status Logic
+            const statusBox = document.getElementById('statusBox');
+            let isSafe = true;
+            let statusMsg = "Design is Satisfactory";
+
+            if (V_crit > phiVc) { isSafe = false; statusMsg = "Shear Capacity Exceeded (Increase Depth)"; }
+            if (Vu_punch > phiVc_punch) { isSafe = false; statusMsg = "Punching Shear Failure (Increase Depth)"; }
+            if (clear_spacing < min_clear_spacing) { isSafe = false; statusMsg = "Clear Spacing too Tight (ACI 318 Min: " + min_clear_spacing.toFixed(0) + "mm)"; }
+            if (qe < 0) { isSafe = false; statusMsg = "Soil Capacity Exceeded (Increase Dimensions)"; }
+
+            statusBox.className = `status-box ${isSafe ? 'status-ok' : 'status-fail'}`;
+            statusBox.innerHTML = `<i class="fa-solid ${isSafe ? 'fa-check-circle' : 'fa-circle-exclamation'}"></i> ${statusMsg}`;
+
+            // Formatting Helper
+            const fmt = (n, d=2) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+            // Step 1 Output
+            document.getElementById('step1').innerHTML = `
+                Total Service Load $R = ${fmt(R_service)} \\text{ kN}$. <br>
+                Net Allowable Pressure $q_e = ${fmt(qa)} - ${fmt(wt_conc)} - ${fmt(wt_soil)} = ${fmt(qe)} \\text{ kPa}$.
+            `;
+
+            // Step 2 Output
+            document.getElementById('step2').innerHTML = `
+                Resultant Location $x_{cg} = \\frac{${fmt(P2_service)} \\times ${fmt(spacing)}}{${fmt(R_service)}} = ${fmt(x_resultant)} \\text{ m}$ from Column 1.<br>
+                Distance from Left Edge = $${fmt(dist_edge_to_col1)} + ${fmt(x_resultant)} = ${fmt(dist_PL_to_R)} \\text{ m}$.<br>
+                <strong>Required Length $L = ${fmt(L)} \\text{ m}$.</strong><br>
+                Required Area $A_{req} = ${fmt(R_service)} / ${fmt(qe)} = ${fmt(A_req)} \\text{ m}^2$.<br>
+                <strong>Required Width $B = ${fmt(B)} \\text{ m}$.</strong>
+            `;
+
+            // Step 3 Output
+            document.getElementById('step3').innerHTML = `
+                Total Ultimate Load $R_u = ${fmt(Ru)} \\text{ kN}$.<br>
+                Ultimate Linear Pressure $q_{u,line} = ${fmt(qu_line)} \\text{ kN/m}$.<br>
+                Max Negative Moment $M_u^- = ${fmt(Math.abs(Mu_neg))} \\text{ kNm}$.<br>
+                Critical One-Way Shear $V_u = ${fmt(V_crit)} \\text{ kN}$ vs $\\phi V_c = ${fmt(phiVc)} \\text{ kN}$.<br>
+                Critical Punching Shear $V_{up} = ${fmt(Vu_punch)} \\text{ kN}$ vs $\\phi V_{cp} = ${fmt(phiVc_punch)} \\text{ kN}$.
+            `;
+
+            // Step 4 Output
+            document.getElementById('step4').innerHTML = `
+                Required Steel Area $A_s = ${fmt(As_req_long)} \\text{ mm}^2$.<br>
+                Provided: <strong>${numBars} - $${mainBarSize} \\text{ mm}$ bars</strong> (Top).<br>
+                Spacing: Approx ${fmt(spacing_avail, 0)} mm c.t.c.
+            `;
+            
+            // Step 5 Output
+             document.getElementById('step5').innerHTML = `
+                Required Transverse Steel: $${fmt(As_trans_m)} \\text{ mm}^2/\\text{m}$.<br>
+                Provide: <strong>$${mainBarSize} \\text{ mm} @ ${spacing_trans} \\text{ mm c.t.c}$</strong> under columns.
+            `;
+
+            // Populate Table
+            const tbody = document.getElementById('reinfTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td>Top Longitudinal</td>
+                    <td>Long direction</td>
+                    <td>$${mainBarSize} \\text{ mm}$</td>
+                    <td>$${numBars}$ bars total</td>
+                    <td>Evenly distributed width $B$</td>
+                </tr>
+                <tr>
+                    <td>Bottom Transverse</td>
+                    <td>Short direction</td>
+                    <td>$${mainBarSize} \\text{ mm}$</td>
+                    <td>@ $${spacing_trans} \\text{ mm c.c.}$</td>
+                    <td>Concentrate under columns</td>
+                </tr>
+                <tr>
+                    <td>Temp / Shrinkage</td>
+                    <td>Bottom Long.</td>
+                    <td>$16 \\text{ mm}$</td>
+                    <td>@ $300 \\text{ mm c.c.}$</td>
+                    <td>Minimum Requirement</td>
+                </tr>
+            `;
+
+            // Render MathJax
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+            document.getElementById('results').style.display = 'block';
+
+            // Draw
+            const filters = {
+                topLong: document.getElementById('showTopLong').checked,
+                topTrans: document.getElementById('showTopTrans').checked,
+                botTrans: document.getElementById('showBotTrans').checked,
+                botLong: document.getElementById('showBotLong').checked
+            };
+
+            drawCanvas(L, B, C1, C2, spacing, dist_edge_to_col1, {
+                numBars, spacing_trans, d, h, cover, filters
+            });
+        }
+
+        function drawCanvas(L, B, c1, c2, spacing, edgeDist, data) {
+            const { numBars, spacing_trans, d, h, cover, filters } = data;
+            const canvas = document.getElementById('footingCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Scale logic
+            const padding = 60;
+            const drawWidth = canvas.width - 2 * padding;
+            const scale = drawWidth / L;
+            
+            const startX = padding;
+            const col1X_center = startX + edgeDist * scale;
+            const col2X_center = startX + (edgeDist + spacing) * scale;
+
+            // ELEVATION VIEW (Top half)
+            const elevY = 100;
+            const ftgH = 40; // visual height relative
+
+            // Ground
+            ctx.beginPath();
+            ctx.moveTo(startX - 20, elevY);
+            ctx.lineTo(startX + L*scale + 20, elevY);
+            ctx.strokeStyle = '#64748b';
+            ctx.stroke();
+
+            // Footing Rect
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(startX, elevY, L*scale, ftgH);
+            ctx.strokeRect(startX, elevY, L*scale, ftgH);
+
+            // Columns
+            ctx.fillStyle = '#cbd5e1';
+            // Col 1
+            const col1X = col1X_center - (c1*scale)/2;
+            ctx.fillRect(col1X, elevY - 60, c1*scale, 60);
+            ctx.strokeRect(col1X, elevY - 60, c1*scale, 60);
+            
+            // Col 2
+            const col2X = col2X_center - (c2*scale)/2;
+            ctx.fillRect(col2X, elevY - 60, c2*scale, 60);
+            ctx.strokeRect(col2X, elevY - 60, c2*scale, 60);
+
+            // Rebar in Elevation
+            const vScaleH = ftgH / h;
+
+            // 1. Top Longitudinal (Red Line)
+            if (filters.topLong) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2;
+                const y = elevY + (cover * vScaleH);
+                ctx.beginPath();
+                ctx.moveTo(startX + 10, y);
+                ctx.lineTo(startX + L * scale - 10, y);
+                ctx.stroke();
+            }
+
+            // 1.5 Top Transverse (Grey Dots)
+            if (filters.topTrans) {
+                ctx.fillStyle = '#94a3b8';
+                const y = elevY + (cover * vScaleH);
+                const s_temp = 0.3; // 300mm
+                const n_temp = Math.floor((L - 2*cover) / s_temp) + 1;
+                const s_temp_actual = n_temp > 1 ? (L - 2*cover) / (n_temp - 1) : 0;
+                
+                for (let i = 0; i < n_temp; i++) {
+                    const x = startX + (cover + i * s_temp_actual) * scale;
+                    if (x >= startX && x <= startX + L*scale) {
+                        ctx.beginPath();
+                        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // 2. Bottom Longitudinal (Grey Line)
+            if (filters.botLong) {
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 1.5;
+                const y = elevY + ftgH - (cover * vScaleH);
+                ctx.beginPath();
+                ctx.moveTo(startX + 10, y);
+                ctx.lineTo(startX + L * scale - 10, y);
+                ctx.stroke();
+            }
+
+            // 3. Bottom Transverse (Blue Dots)
+            if (filters.botTrans) {
+                ctx.fillStyle = '#3b82f6';
+                const y = elevY + ftgH - (cover * vScaleH);
+                const s_trans_m = spacing_trans / 1000;
+                const strip_w = c2 + d;
+                
+                const drawTransDots = (colCenterX) => {
+                    const n_bars = Math.floor(strip_w / s_trans_m) + 1;
+                    const actual_strip_w = (n_bars - 1) * s_trans_m;
+                    const first_bar_x = colCenterX - (actual_strip_w / 2) * scale;
+
+                    for (let i = 0; i < n_bars; i++) {
+                        const x = first_bar_x + i * s_trans_m * scale;
+                        if (x >= startX && x <= startX + L*scale) {
+                            ctx.beginPath();
+                            ctx.arc(x, y, 2, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                };
+                drawTransDots(col1X_center);
+                drawTransDots(col2X_center);
+            }
+
+            // Dimensions Elevation
+            drawDim(ctx, startX, elevY + ftgH + 20, startX + L*scale, elevY + ftgH + 20, `L = ${L.toFixed(2)}m`);
+
+            // PLAN VIEW (Bottom half)
+            const planY = 220;
+            const planH = B * scale; 
+            
+            // Adjust plan view height if it exceeds canvas
+            let planScaleY = 1.0;
+            if (planY + planH > canvas.height - 20) {
+                planScaleY = (canvas.height - planY - 20) / planH;
+            }
+            const drawPlanH = planH * planScaleY;
+            
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(startX, planY, L*scale, drawPlanH);
+            ctx.strokeRect(startX, planY, L*scale, drawPlanH);
+            ctx.strokeStyle = '#334155';
+
+            // Columns in Plan
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(col1X, planY + drawPlanH/2 - (c1*scale)/2, c1*scale, c1*scale);
+            ctx.fillRect(col2X, planY + drawPlanH/2 - (c2*scale)/2, c2*scale, c2*scale);
+
+            // 1. Top Longitudinal Bars (Red)
+            if (filters.topLong && numBars > 0) {
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1.5;
+                const s_long = numBars > 1 ? (B - 2*cover) / (numBars - 1) : 0;
+                for (let i = 0; i < numBars; i++) {
+                    const y = planY + (cover + i * s_long) * scale * planScaleY;
+                    ctx.beginPath();
+                    ctx.moveTo(startX + 10, y);
+                    ctx.lineTo(startX + L * scale - 10, y);
+                    ctx.stroke();
+                }
+            }
+
+            // 1.5 Top Transverse Bars (Grey - Temp)
+            if (filters.topTrans) {
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 1;
+                const s_temp = 0.3; // 300mm
+                const n_temp = Math.floor((L - 2*cover) / s_temp) + 1;
+                const s_temp_actual = n_temp > 1 ? (L - 2*cover) / (n_temp - 1) : 0;
+                for (let i = 0; i < n_temp; i++) {
+                    const x = startX + (cover + i * s_temp_actual) * scale;
+                    ctx.beginPath();
+                    ctx.moveTo(x, planY + 5);
+                    ctx.lineTo(x, planY + drawPlanH - 5);
+                    ctx.stroke();
+                }
+            }
+
+            // 2. Bottom Longitudinal Bars (Grey - Temp)
+            if (filters.botLong) {
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 1;
+                const s_temp = 0.3; // 300mm
+                const n_temp = Math.floor((B - 2*cover) / s_temp) + 1;
+                const s_temp_actual = n_temp > 1 ? (B - 2*cover) / (n_temp - 1) : 0;
+                for (let i = 0; i < n_temp; i++) {
+                    const y = planY + (cover + i * s_temp_actual) * scale * planScaleY;
+                    ctx.beginPath();
+                    ctx.moveTo(startX + 10, y);
+                    ctx.lineTo(startX + L * scale - 10, y);
+                    ctx.stroke();
+                }
+            }
+
+            // 3. Bottom Transverse Bars (Blue - Under Columns)
+            if (filters.botTrans) {
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 1.5;
+                const s_trans_m = spacing_trans / 1000;
+                const strip_w = c2 + d; // Effective strip width
+                
+                const drawTransBars = (colCenterX) => {
+                    const n_bars = Math.floor(strip_w / s_trans_m) + 1;
+                    const actual_strip_w = (n_bars - 1) * s_trans_m;
+                    const first_bar_x = colCenterX - (actual_strip_w / 2) * scale;
+
+                    for (let i = 0; i < n_bars; i++) {
+                        const x = first_bar_x + i * s_trans_m * scale;
+                        if (x >= startX && x <= startX + L*scale) {
+                            ctx.beginPath();
+                            ctx.moveTo(x, planY + 5);
+                            ctx.lineTo(x, planY + drawPlanH - 5);
+                            ctx.stroke();
+                        }
+                    }
+                };
+
+                drawTransBars(col1X_center);
+                drawTransBars(col2X_center);
+            }
+
+            // Dimensions Plan
+            drawDim(ctx, startX - 20, planY, startX - 20, planY + drawPlanH, `B = ${B.toFixed(2)}m`);
+        }
+
+        function drawDim(ctx, x1, y1, x2, y2, text) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            // ticks
+            if(x1 === x2) { // Vertical
+                ctx.moveTo(x1-5, y1); ctx.lineTo(x1+5, y1);
+                ctx.moveTo(x2-5, y2); ctx.lineTo(x2+5, y2);
+            } else { // Horizontal
+                ctx.moveTo(x1, y1-5); ctx.lineTo(x1, y1+5);
+                ctx.moveTo(x2, y2-5); ctx.lineTo(x2, y2+5);
+            }
+            ctx.strokeStyle = '#000';
+            ctx.stroke();
+            
+            ctx.fillStyle = '#000';
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+            if(x1 === x2) {
+                ctx.save();
+                ctx.translate(x1 - 15, (y1+y2)/2);
+                ctx.rotate(-Math.PI/2);
+                ctx.fillText(text, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.fillText(text, (x1+x2)/2, y1 - 8);
+            }
+        }
+
+        // Init with calculation
+        window.onload = calculate; 
+    </script>
+</body>
+</html>

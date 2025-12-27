@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Material Properties | RC Design Suite</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Fira+Code:wght@400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax for Latex Rendering -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .input-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .input-group label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-main);
+            white-space: nowrap;
+            margin-right: 1rem;
+        }
+
+        .input-wrapper {
+            position: relative;
+            width: 120px;
+        }
+
+        .input-wrapper input, .input-wrapper select {
+            width: 100%;
+            padding: 8px 30px 8px 10px; /* Space for unit */
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+        .input-unit {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .output-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .output-section:last-child { border-bottom: none; }
+
+        .output-title {
+            font-size: 1.2rem;
+            color: var(--text-main);
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .explanation {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        /* --- Alert Box --- */
+        .alert-box {
+            display: none;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .alert-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid #f59e0b;
+        }
+
+        /* --- Reinforcement Table --- */
+        .reinf-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+        
+        .reinf-table th, .reinf-table td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .reinf-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .reinf-table tr:hover { background-color: #f1f5f9; }
+        .highlight-row { background-color: #dbeafe !important; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Material Inputs</h2>
+
+            <!-- Validation Alert -->
+            <div id="validation-msg" class="alert-box alert-warning"></div>
+
+            <div class="section-header">Concrete & Steel</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$</label>
+                    <input type="number" id="fc" value="28" min="10" step="1">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$</label>
+                    <input type="number" id="fy" value="420" min="200" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Physical Properties</div>
+            <div class="form-group">
+                <label>Density $w_c$ (kg/m³)</label>
+                <div class="input-wrapper" style="width: 100%;">
+                    <input type="number" id="density" value="2320" min="1400" step="10">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Aggregate Type</label>
+                <div class="input-wrapper" style="width: 100%;">
+                    <select id="aggType">
+                        <option value="normal">Normal Weight</option>
+                        <option value="light">Lightweight</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="calc-btn" onclick="calculateProperties()">Calculate Properties</button>
+        </div>
+    </nav>
+
+        <!-- RESULTS PANEL -->
+        <main class="results-panel">
+            <!-- Hero Section -->
+            <div class="hero">
+                <h1>Material Properties</h1>
+                <p>Calculate mechanical properties of concrete and view standard metric reinforcing steel data based on ACI 318M-11.</p>
+            </div>
+
+            
+            <!-- Concrete Properties Section -->
+            <div class="output-section">
+                <div class="output-title">Concrete Mechanical Properties</div>
+                <p class="explanation">
+                    Based on ACI 318-11 and McCormac & Brown (9th Ed), properties are calculated using SI units.
+                    The <strong>Modulus of Elasticity</strong> ($E_c$) determines the stiffness of the concrete elements.
+                </p>
+
+                <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <p>
+                        $$ E_c = w_c^{1.5} \times 0.043 \times \sqrt{f'_c} $$
+                    </p>
+                    <p id="ec-result" style="font-weight: bold; color: var(--accent); margin-top: 10px;">
+                        <!-- JS Result -->
+                    </p>
+                </div>
+
+                <br>
+
+                <p class="explanation">
+                    The <strong>Modulus of Rupture</strong> ($f_r$) represents the tensile strength of concrete in flexure before cracking occurs.
+                </p>
+                <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <p>
+                        $$ f_r = 0.7 \sqrt{f'_c} $$
+                    </p>
+                    <p id="fr-result" style="font-weight: bold; color: var(--accent); margin-top: 10px;">
+                        <!-- JS Result -->
+                    </p>
+                </div>
+            </div>
+
+            <!-- Stress Block Parameters Section -->
+            <div class="output-section">
+                <div class="output-title">Whitney Stress Block Parameters</div>
+                <p class="explanation">
+                    The factor $\beta_1$ relates the depth of the equivalent rectangular compressive stress block ($a$) to the neutral axis depth ($c$).
+                    For $f'_c \le 30$ MPa, $\beta_1 = 0.85$. For $f'_c > 30$ MPa, it reduces by 0.008 for every MPa over 30, but not less than 0.65.
+                </p>
+                <div style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <p id="beta-formula">
+                        <!-- Dynamic LaTeX Logic -->
+                    </p>
+                    <p id="beta-result" style="font-weight: bold; color: var(--accent); margin-top: 10px;">
+                        <!-- JS Result -->
+                    </p>
+                </div>
+            </div>
+
+            <!-- Reinforcement Data Section -->
+            <div class="output-section">
+                <div class="output-title">Metric Reinforcing Steel Data</div>
+                <p class="explanation">
+                    Standard SI metric bar sizes based on ASTM A615M. Steel Modulus of Elasticity ($E_s$) is taken as <strong>200,000 MPa</strong>.
+                </p>
+                <table class="reinf-table">
+                    <thead>
+                        <tr>
+                            <th>Bar Size (#)</th>
+                            <th>Diameter (mm)</th>
+                            <th>Area (mm²)</th>
+                            <th>Mass (kg/m)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reinf-table-body">
+                        <!-- JS Generated -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+
+    <script>
+        // Standard Metric Bar Data (McCormac Table B.2)
+        const barData = [
+            { size: 10, dia: 9.5, area: 71, mass: 0.560 },
+            { size: 13, dia: 12.7, area: 129, mass: 0.994 },
+            { size: 16, dia: 15.9, area: 199, mass: 1.552 },
+            { size: 19, dia: 19.1, area: 284, mass: 2.235 },
+            { size: 22, dia: 22.2, area: 387, mass: 3.042 },
+            { size: 25, dia: 25.4, area: 510, mass: 3.973 },
+            { size: 29, dia: 28.7, area: 645, mass: 5.060 },
+            { size: 32, dia: 32.3, area: 819, mass: 6.404 },
+            { size: 36, dia: 35.8, area: 1006, mass: 7.907 },
+            { size: 43, dia: 43.0, area: 1452, mass: 11.38 },
+            { size: 57, dia: 57.3, area: 2581, mass: 20.24 }
+        ];
+
+        function initTable() {
+            const tbody = document.getElementById('reinf-table-body');
+            tbody.innerHTML = '';
+            barData.forEach(bar => {
+                const row = `<tr>
+                    <td>#${bar.size}</td>
+                    <td>${bar.dia}</td>
+                    <td>${bar.area}</td>
+                    <td>${bar.mass}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function calculateProperties() {
+            // 1. Get Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const wc = parseFloat(document.getElementById('density').value);
+            const alertBox = document.getElementById('validation-msg');
+
+            // 2. Sanity Checks
+            let warnings = [];
+            
+            // Check Concrete Strength
+            if (fc < 17) warnings.push("Warning: f'c is unusually low (< 17 MPa). Standard structural concrete is usually ≥ 21 MPa.");
+            if (fc > 100) warnings.push("Warning: f'c is very high (> 100 MPa). Ensure this is High Strength Concrete.");
+
+            // Check Steel
+            if (fy < 280) warnings.push("Warning: fy is low (< 280 MPa). Modern steel is typically 420 MPa.");
+            
+            // Check Density
+            if (wc < 1400) warnings.push("Warning: Density is extremely low (< 1400 kg/m³).");
+            if (wc > 2600) warnings.push("Warning: Density is unusually high (> 2600 kg/m³).");
+
+            // Display Warnings
+            if (warnings.length > 0) {
+                alertBox.style.display = 'block';
+                alertBox.innerHTML = warnings.join('<br>');
+            } else {
+                alertBox.style.display = 'none';
+            }
+
+            // 3. Calculation: Modulus of Elasticity (Ec)
+            // Using formula Ec = wc^1.5 * 0.043 * sqrt(fc) (SI Section 1.11)
+            const Ec = Math.pow(wc, 1.5) * 0.043 * Math.sqrt(fc);
+            
+            document.getElementById('ec-result').innerHTML = 
+                `Result: $ E_c = ${Ec.toFixed(0)} \\text{ MPa} $`;
+
+            // 4. Calculation: Modulus of Rupture (fr)
+            // SI formula: 0.7 * sqrt(fc)
+            const fr = 0.7 * Math.sqrt(fc);
+            document.getElementById('fr-result').innerHTML = 
+                `Result: $ f_r = ${fr.toFixed(2)} \\text{ MPa} $`;
+
+            // 5. Calculation: Beta 1
+            // beta1 = 0.85 for fc <= 30. For fc > 30, reduce 0.008 per MPa, min 0.65
+            let beta1 = 0.85;
+            let formulaStr = `$$ \\beta_1 = 0.85 \\quad \\text{(for } f'_c \\le 30 \\text{ MPa)} $$`;
+
+            if (fc > 30) {
+                beta1 = 0.85 - 0.008 * (fc - 30);
+                if (beta1 < 0.65) beta1 = 0.65;
+                formulaStr = `$$ \\beta_1 = 0.85 - 0.008(f'_c - 30) \\ge 0.65 $$`;
+            }
+
+            document.getElementById('beta-formula').innerHTML = formulaStr;
+            document.getElementById('beta-result').innerHTML = `Result: $ \\beta_1 = ${beta1.toFixed(3)} $`;
+
+            // Re-render LaTeX
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initTable();
+            calculateProperties();
+        };
+
+    </script>
+</body>
+</html>

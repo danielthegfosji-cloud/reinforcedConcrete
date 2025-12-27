@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Design Suite | Serviceability Module</title>
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        .visualization-container {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .status-box {
+            padding: 1rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+        .status-success { background-color: #d1fae5; color: #065f46; border-color: #34d399; }
+        .status-danger { background-color: #fee2e2; color: #991b1b; border-color: #f87171; }
+        .status-warning { background-color: #fef3c7; color: #92400e; border-color: #fbbf24; }
+
+        .result-header {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-block {
+            margin-bottom: 2rem;
+        }
+
+        .result-block h3 {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--accent);
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Serviceability</h2>
+
+            <div class="section-header">Geometry</div>
+            <div class="form-group">
+                <label for="spanLength">Span Length $L$ (m)</label>
+                <input type="number" id="spanLength" value="6.0" step="0.1">
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="beamWidth">Width $b$ (mm)</label>
+                    <input type="number" id="beamWidth" value="300" step="10">
+                </div>
+                <div class="form-col">
+                    <label for="beamHeight">Depth $h$ (mm)</label>
+                    <input type="number" id="beamHeight" value="500" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Materials</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="fc">Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" step="1">
+                </div>
+                <div class="form-col">
+                    <label for="fy">Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Reinforcement</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="barSize">Bar Diameter</label>
+                    <select id="barSize">
+                        <option value="16">16 mm</option>
+                        <option value="20" selected>20 mm</option>
+                        <option value="25">25 mm</option>
+                        <option value="28">28 mm</option>
+                        <option value="32">32 mm</option>
+                    </select>
+                </div>
+                <div class="form-col">
+                    <label for="numBars">No. of Bars</label>
+                    <input type="number" id="numBars" value="3" step="1" min="1">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="cover">Clear Cover (mm)</label>
+                    <input type="number" id="cover" value="40" step="5">
+                </div>
+                <div class="form-col">
+                    <label for="stirrup">Stirrup $\phi$ (mm)</label>
+                    <input type="number" id="stirrup" value="10" step="1">
+                </div>
+            </div>
+
+            <div class="section-header">Loads & Time</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="wd">Dead $w_D$ (kN/m)</label>
+                    <input type="number" id="wd" value="15" step="0.1">
+                </div>
+                <div class="form-col">
+                    <label for="wl">Live $w_L$ (kN/m)</label>
+                    <input type="number" id="wl" value="10" step="0.1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="sustained">Sustained Live Load (%)</label>
+                <input type="number" id="sustained" value="30" step="5" max="100">
+            </div>
+            <div class="form-group">
+                <label for="duration">Load Duration ($\xi$)</label>
+                <select id="duration">
+                    <option value="2.0">5 years or more (2.0)</option>
+                    <option value="1.4">12 months (1.4)</option>
+                    <option value="1.2">6 months (1.2)</option>
+                    <option value="1.0">3 months (1.0)</option>
+                </select>
+            </div>
+
+            <button class="calc-btn" onclick="calculateServiceability()">
+                <i class="fa-solid fa-calculator"></i> Calculate
+            </button>
+        </div>
+    </nav>
+
+    <!-- RIGHT PANEL: RESULTS -->
+    <main class="results-panel">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Serviceability Analysis</h1>
+            <p>Analyze crack widths and deflections for reinforced concrete beams based on ACI 318M-11.</p>
+        </div>
+
+        <!-- Visualization Area -->
+        <div class="visualization-container">
+            <div class="canvas-wrapper">
+                <canvas id="sectionCanvas" width="300" height="350"></canvas>
+            </div>
+            <div class="canvas-wrapper" style="width: 100%; max-width: 500px;">
+                 <canvas id="deflectionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Error Box -->
+        <div id="errorBox" class="status-box status-danger" style="display:none; margin-bottom: 1.5rem;"></div>
+
+        <!-- Results Area -->
+        <div class="card" id="resultsArea" style="opacity: 0.5; pointer-events: none;">
+            <div class="result-header">
+                Calculation Summary
+                <span id="overallStatus" class="status-badge status-ok">PASS</span>
+            </div>
+
+            <!-- Reinforcement Summary -->
+            <div class="result-block">
+                <h3><i class="fa-solid fa-bars"></i> Reinforcement Summary</h3>
+                <div id="reinforcementSchedule"></div>
+            </div>
+
+            <!-- Cracking Analysis -->
+            <div class="result-block">
+                <h3><i class="fa-solid fa-bolt"></i> Crack Width Analysis (ACI 318M / Gergely-Lutz)</h3>
+                <div class="result-row">
+                    <span class="result-label">Effective Tension Area ($A$)</span>
+                    <span class="result-value" id="resA">0 mm²</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Steel Stress ($f_s = 0.6f_y$)</span>
+                    <span class="result-value" id="resFs">0 MPa</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Distance from NA to Tension Face ($\beta_h$)</span>
+                    <span class="result-value" id="resBeta">1.2</span>
+                </div>
+                <div class="result-row" style="background: #f8fafc; border-radius: 6px; padding: 10px;">
+                    <span class="result-label">Calculated Crack Width ($w$)</span>
+                    <span class="result-value" id="resCrack">0 mm</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Max Spacing Check (ACI 10.6.4)</span>
+                    <span class="result-value" id="resSpacing">OK</span>
+                </div>
+            </div>
+
+            <!-- Deflection Analysis -->
+            <div class="result-block">
+                <h3><i class="fa-solid fa-chart-line"></i> Deflection Analysis</h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 10px;">
+                    Based on Effective Moment of Inertia ($I_e$) per ACI 318
+                </p>
+                <div class="result-row">
+                    <span class="result-label">Cracking Moment ($M_{cr}$)</span>
+                    <span class="result-value" id="resMcr">0 kN-m</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Service Moment ($M_a$)</span>
+                    <span class="result-value" id="resMa">0 kN-m</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Effective Inertia ($I_e$)</span>
+                    <span class="result-value" id="resIe">0 mm⁴</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Immediate Deflection (D+L)</span>
+                    <span class="result-value" id="resImmDef">0 mm</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Long-Term Multiplier ($\lambda_\Delta$)</span>
+                    <span class="result-value" id="resLambda">0</span>
+                </div>
+                <div class="result-row" style="background: #f0f9ff; border-radius: 6px; padding: 10px; border: 1px solid #bae6fd;">
+                    <span class="result-label" style="color:#0369a1;">Total Long-Term Deflection</span>
+                    <span class="result-value" id="resTotalDef" style="color:#0284c7;">0 mm</span>
+                </div>
+                <div class="result-row">
+                    <span class="result-label">Limit check ($\ell/240$)</span>
+                    <span class="result-value" id="resLimitCheck">OK</span>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // --- VISUALIZATION LOGIC ---
+        function drawSection(b, h, cc, numBars, db, stirrup) {
+            const canvas = document.getElementById('sectionCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Scale factor to fit beam in canvas
+            const scale = Math.min((width - 60) / b, (height - 60) / h);
+            const drawB = b * scale;
+            const drawH = h * scale;
+            const startX = (width - drawB) / 2;
+            const startY = (height - drawH) / 2;
+
+            // Draw Concrete Section
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, drawB, drawH);
+            ctx.strokeRect(startX, startY, drawB, drawH);
+
+            // Draw Stirrup (simplified box)
+            const stirrupInset = (cc) * scale;
+            ctx.strokeStyle = '#ef4444'; // Red for stirrup
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startX + stirrupInset, startY + stirrupInset, drawB - 2*stirrupInset, drawH - 2*stirrupInset);
+
+            // Draw Bars
+            const barY = startY + drawH - stirrupInset - (stirrup*scale) - (db/2 * scale);
+            // Effective width for bars
+            const effWidth = drawB - 2*stirrupInset - 2*(stirrup*scale) - (db*scale);
+            const gap = numBars > 1 ? effWidth / (numBars - 1) : 0;
+
+            ctx.fillStyle = '#1e293b'; // Dark blue for bars
+            
+            for(let i=0; i<numBars; i++) {
+                let barX;
+                if(numBars === 1) {
+                    barX = startX + drawB/2;
+                } else {
+                    barX = startX + stirrupInset + (stirrup*scale) + (db/2*scale) + (i * gap);
+                }
+                
+                ctx.beginPath();
+                ctx.arc(barX, barY, (db/2 * scale), 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Dimensions Text
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+            // Width
+            ctx.fillText(`b = ${b} mm`, width/2, startY - 10);
+            // Height
+            ctx.save();
+            ctx.translate(startX - 15, height/2);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText(`h = ${h} mm`, 0, 0);
+            ctx.restore();
+        }
+
+        let defChart = null;
+
+        function drawDeflectionChart(L, deltaImm, deltaLong) {
+            const ctx = document.getElementById('deflectionChart').getContext('2d');
+            
+            // Create data points for a parabola
+            const points = 20;
+            const labels = [];
+            const dataImm = [];
+            const dataLong = [];
+
+            for(let i=0; i<=points; i++) {
+                const x = (i/points) * L;
+                labels.push(x.toFixed(1) + 'm');
+                
+                // Parabolic shape factor: 4 * (x/L) * (1 - x/L) * maxDeflection
+                // Note: Deflection is downward (negative in chart usually, but we plot magnitude)
+                const shape = 4 * (i/points) * (1 - i/points);
+                dataImm.push(shape * deltaImm);
+                dataLong.push(shape * deltaLong);
+            }
+
+            if(defChart) defChart.destroy();
+
+            defChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Immediate Deflection',
+                            data: dataImm,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Total Long-Term',
+                            data: dataLong,
+                            borderColor: '#ef4444',
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Deflection Profile (mm)' },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        y: {
+                            reverse: true, // Deflection goes down
+                            title: { display: true, text: 'Deflection (mm)' }
+                        },
+                        x: { display: false } // Hide x axis labels to clean up
+                    }
+                }
+            });
+        }
+
+        // --- CALCULATION LOGIC ---
+        function calculateServiceability() {
+            // 1. Gather Inputs
+            const L = parseFloat(document.getElementById('spanLength').value) * 1000; // m -> mm
+            const b = parseFloat(document.getElementById('beamWidth').value);
+            const h = parseFloat(document.getElementById('beamHeight').value);
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const db = parseFloat(document.getElementById('barSize').value);
+            const n = parseFloat(document.getElementById('numBars').value);
+            const cc = parseFloat(document.getElementById('cover').value);
+            const ds = parseFloat(document.getElementById('stirrup').value);
+            const wD = parseFloat(document.getElementById('wd').value); // kN/m -> N/mm
+            const wL = parseFloat(document.getElementById('wl').value); // kN/m -> N/mm
+            const susL_pct = parseFloat(document.getElementById('sustained').value) / 100;
+            const xi = parseFloat(document.getElementById('duration').value);
+
+            const errorBox = document.getElementById('errorBox');
+            errorBox.style.display = 'none';
+            errorBox.innerHTML = '';
+
+            // --- REALISM CHECKS ---
+            // 1. Fit Check
+            // Space required = 2*cover + 2*stirrup + n*db + (n-1)*spacing
+            // Min spacing = max(db, 25mm)
+            const minSpace = Math.max(db, 25);
+            const reqWidth = (2 * cc) + (2 * ds) + (n * db) + ((n - 1) * minSpace);
+            
+            if (reqWidth > b) {
+                errorBox.innerHTML = `<strong>Configuration Error:</strong> Reinforcement does not fit in the beam width.<br>Required: ${reqWidth} mm, Available: ${b} mm.`;
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            // 2. Effective Depth
+            const d = h - cc - ds - (db / 2);
+            if (d <= 0) {
+                errorBox.innerHTML = `<strong>Geometry Error:</strong> Effective depth is zero or negative. Check cover/height.`;
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            // --- SECTION PROPERTIES ---
+            const As = n * (Math.PI * Math.pow(db/2, 2));
+            const Es = 200000; // MPa
+            const Ec = 4700 * Math.sqrt(fc); // MPa
+            const modN = Es / Ec;
+
+            // Gross Properties
+            const Ig = (b * Math.pow(h, 3)) / 12;
+            const yt = h / 2;
+            const fr = 0.7 * Math.sqrt(fc); // Modulus of Rupture (SI ACI)
+            const Mcr = (fr * Ig) / yt; // N-mm
+
+            // Cracked Properties (Transformed Section)
+            // Quadratic for neutral axis x: (b/2)x^2 + nAs*x - nAs*d = 0
+            const quadA = b / 2;
+            const quadB = modN * As;
+            const quadC = -modN * As * d;
+            
+            const x = (-quadB + Math.sqrt(Math.pow(quadB, 2) - 4 * quadA * quadC)) / (2 * quadA);
+            
+            const Icr = (b * Math.pow(x, 3)) / 3 + (modN * As * Math.pow(d - x, 2));
+
+            // --- LOADS & MOMENTS ---
+            // Convert loads kN/m to N/mm (same value numerically)
+            const wTotal = wD + wL;
+            const wSus = wD + (wL * susL_pct);
+
+            // Max Service Moment (Simple Span assumption)
+            // M = wL^2 / 8.  w is N/mm, L is mm -> Result N-mm
+            const Ma = (wTotal * Math.pow(L, 2)) / 8;
+            const Ma_Sus = (wSus * Math.pow(L, 2)) / 8;
+
+            // --- DEFLECTION CALCULATIONS ---
+            // Effective Inertia (Branson)
+            // Ie = (Mcr/Ma)^3 * Ig + [1 - (Mcr/Ma)^3] * Icr <= Ig
+            let Ie, Ie_Sus;
+
+            // For Total Load
+            if (Ma <= Mcr) {
+                Ie = Ig;
+            } else {
+                const ratio = Math.pow(Mcr / Ma, 3);
+                Ie = ratio * Ig + (1 - ratio) * Icr;
+                Ie = Math.min(Ie, Ig);
+            }
+
+            // For Sustained Load
+            if (Ma_Sus <= Mcr) {
+                Ie_Sus = Ig;
+            } else {
+                const ratioSus = Math.pow(Mcr / Ma_Sus, 3);
+                Ie_Sus = ratioSus * Ig + (1 - ratioSus) * Icr;
+                Ie_Sus = Math.min(Ie_Sus, Ig);
+            }
+
+            // Immediate Deflections
+            // Delta = 5wL^4 / (384 E I)
+            const delta_Imm = (5 * wTotal * Math.pow(L, 4)) / (384 * Ec * Ie);
+            
+            // Long Term Deflection logic (ACI)
+            // Delta_LT = Delta_Imm(Sus) * Lambda
+            // Lambda = xi / (1 + 50*rho'). rho' = 0 for singly reinforced.
+            const lambda = xi / (1 + 0); // Assuming no compression steel for simplicity in this module
+            
+            const delta_Imm_Sus = (5 * wSus * Math.pow(L, 4)) / (384 * Ec * Ie_Sus);
+            const delta_CreepShrink = delta_Imm_Sus * lambda;
+
+            // Total Deflection = Immediate(Total) + Creep/Shrinkage component
+            // Note: Some interpretations take Delta_Total = Delta_Imm(L) + Delta_LT(Sus).
+            // ACI simplified approach: Total = Delta_Imm + lambda * Delta_Sus
+            const delta_Total = delta_Imm + delta_CreepShrink;
+
+            // --- CRACK WIDTH (Gergely-Lutz SI Modified) ---
+            // w = 0.011 * beta * fs * cbrt(dc * A)   (result in mm)
+            // fs ~ 0.6 fy or calculated M(d-kd)
+            // Let's calculate actual fs at service moment Ma
+            // fs = n * M * (d-x) / Icr
+            let fs;
+            if (Ma > Mcr) {
+                fs = (modN * Ma * (d - x)) / Icr;
+            } else {
+                fs = 0.6 * fy; // Conservative fallback if uncracked but user checks limits
+            }
+
+            const dc = cc + ds + db/2; // Distance to centroid of bottom bar
+            const beta = (h - x) / (d - x);
+            
+            // Effective tension area A = (2 * centroid_dist * b) / num_bars
+            // Centroid distance from tension face is dc
+            const effAreaPerBar = (2 * dc * b) / n;
+
+            // Gergely-Lutz SI (Result in mm)
+            // Formula variants exist, standard metric: w = 1.1e-5 * beta * fs * cbrt(dc * A)
+            // Note: Standard G-L usually predicts in 0.01 inch units, converted.
+            // Using ACI 318-95 metric equivalent or similar:
+            // w = 0.000011 * beta * fs * (dc * A)^(1/3)  (fs in MPa, dc, A in mm)
+            const crackWidth = 0.000011 * beta * fs * Math.pow(dc * effAreaPerBar, 1/3);
+
+            // ACI 10.6.4 Spacing Check
+            // s_max = 380 * (280/fs) - 2.5*cc
+            // but not > 300 * (280/fs)
+            const term1 = 380 * (280 / fs);
+            const s_max_calc = term1 - 2.5 * cc;
+            const s_max_limit = 300 * (280 / fs);
+            const s_max = Math.min(s_max_calc, s_max_limit);
+
+            const actualSpacing = (b - 2*cc - 2*ds - db) / (n - 1);
+            const spacingCheck = (n > 1) ? (actualSpacing <= s_max) : true;
+
+            // --- RENDER RESULTS ---
+            
+            // Visuals
+            document.getElementById('resultsArea').style.opacity = '1';
+            document.getElementById('resultsArea').style.pointerEvents = 'auto';
+            drawSection(b, h, cc, n, db, ds);
+            drawDeflectionChart(L/1000, delta_Imm, delta_Total);
+
+            // Table Population
+            const schedule = document.getElementById('reinforcementSchedule');
+            schedule.innerHTML = `
+                <div class="result-row"><span class="result-label">Bar Diameter:</span><span class="result-value">${db} mm</span></div>
+                <div class="result-row"><span class="result-label">Number of Bars:</span><span class="result-value">${n}</span></div>
+                <div class="result-row"><span class="result-label">Steel Area ($A_s$):</span><span class="result-value">${As.toFixed(0)} mm²</span></div>
+                <div class="result-row"><span class="result-label">Effective Depth ($d$):</span><span class="result-value">${d.toFixed(1)} mm</span></div>
+                <div class="result-row"><span class="result-label">Reinforcement Ratio ($\rho$):</span><span class="result-value">${(As/(b*d)).toFixed(4)}</span></div>
+            `;
+
+            // Crack Results
+            document.getElementById('resA').innerText = effAreaPerBar.toFixed(0) + " mm²";
+            document.getElementById('resFs').innerText = fs.toFixed(1) + " MPa";
+            document.getElementById('resBeta').innerText = beta.toFixed(2);
+            document.getElementById('resCrack').innerText = crackWidth.toFixed(3) + " mm";
+            
+            const crackStatus = spacingCheck ? "OK" : "FAIL";
+            const crackColor = spacingCheck ? "green" : "red";
+            document.getElementById('resSpacing').innerHTML = `<span style="color:${crackColor}"><strong>${crackStatus}</strong></span> (Actual: ${n>1 ? actualSpacing.toFixed(0):'-'} mm vs Max: ${s_max.toFixed(0)} mm)`;
+
+            // Deflection Results
+            document.getElementById('resMcr').innerText = (Mcr/1e6).toFixed(2) + " kN-m";
+            document.getElementById('resMa').innerText = (Ma/1e6).toFixed(2) + " kN-m";
+            document.getElementById('resIe').innerText = Ie.toExponential(2) + " mm⁴";
+            document.getElementById('resImmDef').innerText = delta_Imm.toFixed(2) + " mm";
+            document.getElementById('resLambda').innerText = lambda.toFixed(2);
+            document.getElementById('resTotalDef').innerText = delta_Total.toFixed(2) + " mm";
+
+            // Limit Check (L/240)
+            const limit = L / 240;
+            const defCheck = delta_Total <= limit;
+            const defStatus = defCheck ? "Pass" : "Fail";
+            const defColor = defCheck ? "green" : "red";
+            document.getElementById('resLimitCheck').innerHTML = `<span style="color:${defColor}"><strong>${defStatus}</strong></span> (Limit L/240: ${limit.toFixed(1)} mm)`;
+
+            // Overall Badge
+            const badge = document.getElementById('overallStatus');
+            if(defCheck && spacingCheck) {
+                badge.className = "status-badge status-success";
+                badge.innerText = "PASS";
+            } else {
+                badge.className = "status-badge status-danger";
+                badge.innerText = "CHECK";
+            }
+
+            // Re-render MathJax
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+        }
+
+        // Draw initial placeholder
+        window.onload = function() {
+            const canvas = document.getElementById('sectionCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fillRect(0,0,300,350);
+            ctx.fillStyle = '#64748b';
+            ctx.font = '14px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText("Enter parameters and click Calculate", 150, 175);
+        };
+    </script>
+</body>
+</html>

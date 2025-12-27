@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Design Suite | Concrete Calculator Hub</title>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax for LaTeX Rendering -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        /* --- SIDEBAR NAVIGATION --- */
+        .sidebar {
+            width: 380px;
+        }
+
+        .brand {
+            padding: 2rem 1.5rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            border-bottom: 1px solid #475569;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand i {
+            color: var(--accent);
+        }
+
+        .nav-group {
+            padding: 1.5rem 1rem 0 1rem;
+        }
+
+        .nav-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #94a3b8;
+            margin-bottom: 0.75rem;
+            padding-left: 0.5rem;
+            font-weight: 600;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: #e2e8f0;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .nav-item:hover {
+            background-color: #334155;
+            color: white;
+            padding-left: 1.25rem; /* Slight slide effect */
+        }
+
+        .nav-item i {
+            width: 24px;
+            margin-right: 10px;
+            color: var(--accent);
+            text-align: center;
+        }
+
+        /* --- MAIN CONTENT AREA --- */
+        .main-content {
+            margin-left: 380px; /* Width of sidebar */
+            flex: 1;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233b82f6' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+
+        .hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            max-width: 600px;
+        }
+
+        /* Calculators Grid */
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--accent);
+            padding-left: 10px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            text-decoration: none;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-color: var(--accent);
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            background-color: #eff6ff;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-icon i {
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+
+        .card-desc {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-footer {
+            display: flex;
+            align-items: center;
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .card-footer i {
+            margin-left: 5px;
+            transition: margin-left 0.2s;
+        }
+
+        .card:hover .card-footer i {
+            margin-left: 10px;
+        }
+
+        /* Footer */
+        footer {
+            margin-top: auto;
+            border-top: 1px solid var(--border-color);
+            padding-top: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR NAVIGATION -->
+    <nav class="sidebar">
+        <div class="brand">
+            <i class="fa-solid fa-cube"></i>
+            RC Design Suite
+        </div>
+
+        <!-- Group 1: Basics -->
+        <div class="nav-group">
+            <div class="nav-header">Analysis & Basics</div>
+            <a href="material-properties.html" class="nav-item">
+                <i class="fa-solid fa-flask"></i> Material Properties
+            </a>
+            <a href="loads.html" class="nav-item">
+                <i class="fa-solid fa-weight-hanging"></i> Load Calculations
+            </a>
+            <a href="coming-soon.html" class="nav-item">
+                <i class="fa-solid fa-chart-line"></i> Flexural Analysis
+            </a>
+        </div>
+
+        <!-- Group 2: Beam Design -->
+        <div class="nav-group">
+            <div class="nav-header">Beam Design</div>
+            <a href="rectangular-beams.html" class="nav-item">
+                <i class="fa-solid fa-draw-polygon"></i> Rectangular Beams
+            </a>
+            <a href="t-beams.html" class="nav-item">
+                <i class="fa-solid fa-t"></i> T-Beams
+            </a>
+            <a href="shear-design.html" class="nav-item">
+                <i class="fa-solid fa-scissors"></i> Shear & Stirrups
+            </a>
+            <a href="torsion.html" class="nav-item">
+                <i class="fa-solid fa-arrows-spin"></i> Torsion
+            </a>
+            <a href="development-length.html" class="nav-item">
+                <i class="fa-solid fa-ruler-horizontal"></i> Bond & Dev. Length
+            </a>
+            <a href="serviceability.html" class="nav-item">
+                <i class="fa-solid fa-eye"></i> Serviceability (Cracks)
+            </a>
+        </div>
+
+        <!-- Group 3: Columns -->
+        <div class="nav-group">
+            <div class="nav-header">Columns</div>
+            <a href="short-columns.html" class="nav-item">
+                <i class="fa-solid fa-compress"></i> Short Columns (Axial)
+            </a>
+            <a href="interaction-diagram.html" class="nav-item">
+                <i class="fa-solid fa-chart-area"></i> Interaction Diagrams
+            </a>
+            <a href="slender-columns.html" class="nav-item">
+                <i class="fa-solid fa-text-height"></i> Slender Columns
+            </a>
+        </div>
+
+        <!-- Group 4: Slabs & Systems -->
+        <div class="nav-group">
+            <div class="nav-header">Slabs & Systems</div>
+            <a href="one-way-slabs.html" class="nav-item">
+                <i class="fa-solid fa-arrow-up"></i> One-Way Slabs
+            </a>
+            <a href="two-way-slabs.html" class="nav-item">
+                <i class="fa-solid fa-arrows-up-down-left-right"></i> Two-Way Slabs
+            </a>
+            <a href="continuous-beams.html" class="nav-item">
+                <i class="fa-solid fa-wave-square"></i> Continuous Frames
+            </a>
+        </div>
+
+        <!-- Group 5: Foundations & Walls -->
+        <div class="nav-group">
+            <div class="nav-header">Foundations & Walls</div>
+            <a href="wall-footings.html" class="nav-item">
+                <i class="fa-solid fa-grip-lines"></i> Wall Footings
+            </a>
+            <a href="isolated-footings.html" class="nav-item">
+                <i class="fa-solid fa-square"></i> Isolated Footings
+            </a>
+            <a href="combined-footings.html" class="nav-item">
+                <i class="fa-solid fa-object-group"></i> Combined Footings
+            </a>
+            <a href="mat-foundations.html" class="nav-item">
+                <i class="fa-solid fa-layer-group"></i> Mat Foundations
+            </a>
+            <a href="coming-soon.html" class="nav-item">
+                <i class="fa-solid fa-cubes"></i> Pile Caps
+            </a>
+            <a href="coming-soon.html" class="nav-item">
+                <i class="fa-solid fa-mountain"></i> Retaining Walls
+            </a>
+            <a href="coming-soon.html" class="nav-item">
+                <i class="fa-solid fa-border-all"></i> Shear Walls
+            </a>
+        </div>
+
+        <!-- Group 6: Special Topics -->
+        <div class="nav-group">
+            <div class="nav-header">Special Topics</div>
+            <a href="coming-soon.html" class="nav-item">
+                <i class="fa-solid fa-grip-lines"></i> Prestressed Concrete
+            </a>
+            <a href="coming-soon.html" class="nav-item">
+                <i class="fa-solid fa-brick"></i> Reinforced Masonry
+            </a>
+            <a href="coming-soon.html" class="nav-item">
+                <i class="fa-solid fa-house-crack"></i> Seismic Design
+            </a>
+        </div>
+        
+        <div style="height: 50px;"></div> <!-- Spacer -->
+    </nav>
+
+    <!-- MAIN PAGE CONTENT -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Reinforced Concrete Design</h1>
+            <p>A comprehensive suite of calculation tools based on ACI 318-11 Code. Select a module from the sidebar or use the quick access tools below.</p>
+        </div>
+
+        <!-- Quick Access Section -->
+        <div class="section-title">Commonly Used Calculators</div>
+        
+        <div class="grid-container">
+            <!-- Card 1: Rectangular Beams -->
+            <a href="rectangular-beams.html" class="card">
+                <div>
+                    <div class="card-icon">
+                        <i class="fa-solid fa-vector-square"></i>
+                    </div>
+                    <div class="card-title">Rectangular Beam Design</div>
+                    <div class="card-desc">
+                        Calculate flexural strength ($M_n$), required steel area ($A_s$), and check strain limits for singly and doubly reinforced beams.
+                    </div>
+                </div>
+                <div class="card-footer">
+                    Launch Calculator <i class="fa-solid fa-arrow-right"></i>
+                </div>
+            </a>
+
+            <!-- Card 2: One-Way Slabs -->
+            <a href="one-way-slabs.html" class="card">
+                <div>
+                    <div class="card-icon">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <div class="card-title">One-Way Slab Design</div>
+                    <div class="card-desc">
+                        Design continuous one-way slabs. Includes temperature steel checks and ACI coefficient method for moments.
+                    </div>
+                </div>
+                <div class="card-footer">
+                    Launch Calculator <i class="fa-solid fa-arrow-right"></i>
+                </div>
+            </a>
+
+            <!-- Card 3: Short Columns -->
+            <a href="short-columns.html" class="card">
+                <div>
+                    <div class="card-icon">
+                        <i class="fa-solid fa-columns"></i>
+                    </div>
+                    <div class="card-title">Short Column Analysis</div>
+                    <div class="card-desc">
+                        Analyze axially loaded columns and columns with eccentric loading. Generate interaction points ($P_n, M_n$).
+                    </div>
+                </div>
+                <div class="card-footer">
+                    Launch Calculator <i class="fa-solid fa-arrow-right"></i>
+                </div>
+            </a>
+
+            <!-- Card 4: Shear Design -->
+            <a href="shear-design.html" class="card">
+                <div>
+                    <div class="card-icon">
+                        <i class="fa-solid fa-scissors"></i>
+                    </div>
+                    <div class="card-title">Shear & Stirrups</div>
+                    <div class="card-desc">
+                        Determine shear capacity ($\phi V_c$) and design stirrup spacing ($s$) for beams based on $V_u$ diagrams.
+                    </div>
+                </div>
+                <div class="card-footer">
+                    Launch Calculator <i class="fa-solid fa-arrow-right"></i>
+                </div>
+            </a>
+
+            <!-- Card 5: Footings -->
+            <a href="isolated-footings.html" class="card">
+                <div>
+                    <div class="card-icon">
+                        <i class="fa-solid fa-square"></i>
+                    </div>
+                    <div class="card-title">Isolated Footing Design</div>
+                    <div class="card-desc">
+                        Design square or rectangular isolated footings. Checks one-way shear, punching shear, and bearing pressure.
+                    </div>
+                </div>
+                <div class="card-footer">
+                    Launch Calculator <i class="fa-solid fa-arrow-right"></i>
+                </div>
+            </a>
+
+            <!-- Card 6: Development Length -->
+            <a href="development-length.html" class="card">
+                <div>
+                    <div class="card-icon">
+                        <i class="fa-solid fa-anchor"></i>
+                    </div>
+                    <div class="card-title">Development Length</div>
+                    <div class="card-desc">
+                        Calculate required development lengths ($l_d$) for tension/compression bars and standard hooks.
+                    </div>
+                </div>
+                <div class="card-footer">
+                    Launch Calculator <i class="fa-solid fa-arrow-right"></i>
+                </div>
+            </a>
+        </div>
+
+        <footer>
+            <p>&copy; 2023 Concrete Design Suite. Based on McCormac & Brown, 9th Edition.</p>
+        </footer>
+    </main>
+
+</body>
+</html>

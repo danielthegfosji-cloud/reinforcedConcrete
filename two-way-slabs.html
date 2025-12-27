@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Way Slab Design | RC Design Suite</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- MathJax for Latex -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!-- Three.js for 3D Visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        .visualization-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        canvas {
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background-color: #f8fafc;
+            max-width: 100%;
+        }
+
+        .summary-header {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #f1f5f9;
+            color: var(--text-dark);
+        }
+
+        .result-item {
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #334155;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-left: 8px;
+        }
+        .status-ok { background-color: #d1fae5; color: #065f46; }
+        .status-fail { background-color: #fee2e2; color: #991b1b; }
+
+        /* 3D Modal Styles */
+        #modal3d { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; flex-direction:column; align-items:center; justify-content:center; }
+        .modal-content { width:90%; height:85%; background:white; border-radius:12px; position:relative; overflow:hidden; display: flex; flex-direction: column; }
+        #threeContainer { flex: 1; width: 100%; background: #f0f2f5; }
+
+        .latex-row {
+            overflow-x: auto;
+            padding: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Modal -->
+    <div id="modal3d">
+        <div class="modal-content">
+            <div style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin:0;">3D Reinforcement Model</h3>
+                <button onclick="close3DModal()" style="padding:8px 16px; background:var(--error); color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Close View</button>
+            </div>
+            <div id="threeContainer"></div>
+            <div style="padding: 10px; background: #1e293b; color: white; font-size: 0.8rem; text-align: center;">
+                <i class="fa-solid fa-mouse"></i> Left Click: Rotate | Scroll: Zoom | Right Click: Pan
+            </div>
+        </div>
+    </div>
+    
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Slab Properties</h2>
+            
+            <div class="section-header">Slab Geometry</div>
+            <div class="input-group">
+                <label>Slab Boundary Condition</label>
+                <select id="spanType">
+                    <option value="continuous">Continuous (Interior Panel)</option>
+                    <option value="simple">Simply Supported (Corner/Isolated)</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>$L_1$ Span (mm)</label>
+                    <input type="number" id="l1" value="6000" step="100">
+                </div>
+                <div class="form-col">
+                    <label>$L_2$ Span (mm)</label>
+                    <input type="number" id="l2" value="5000" step="100">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Column (mm)</label>
+                    <input type="number" id="colSize" value="400" step="50">
+                </div>
+                <div class="form-col">
+                    <label>Thickness $h$</label>
+                    <input type="number" id="thickness" value="180" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Material Properties</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$</label>
+                    <input type="number" id="fc" value="28" step="1">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$</label>
+                    <input type="number" id="fy" value="420" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Applied Loads</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>SDL (kN/m²)</label>
+                    <input type="number" id="wd" value="1.5" step="0.1">
+                </div>
+                <div class="form-col">
+                    <label>Live (kN/m²)</label>
+                    <input type="number" id="wl" value="2.4" step="0.1">
+                </div>
+            </div>
+
+            <div class="section-header">Reinforcement</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Bar Size (mm)</label>
+                    <select id="barSize">
+                        <option value="10">10 mm</option>
+                        <option value="12" selected>12 mm</option>
+                        <option value="16">16 mm</option>
+                        <option value="20">20 mm</option>
+                    </select>
+                </div>
+                <div class="form-col">
+                    <label>Cover (mm)</label>
+                    <input type="number" id="cover" value="20" step="5">
+                </div>
+            </div>
+
+            <div class="section-header">Visualization</div>
+            <div class="input-group">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <label style="display: flex; align-items: center; gap: 5px; margin: 0; cursor: pointer;">
+                        <input type="checkbox" id="showL1" checked style="width: auto;"> L1 Bars
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; margin: 0; cursor: pointer;">
+                        <input type="checkbox" id="showL2" checked style="width: auto;"> L2 Bars
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; margin: 0; cursor: pointer;">
+                        <input type="checkbox" id="showPos" checked style="width: auto;"> Positive
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 5px; margin: 0; cursor: pointer;">
+                        <input type="checkbox" id="showNeg" checked style="width: auto;"> Negative
+                    </label>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Concrete Cover ($c_c$)</label>
+                <div class="input-wrapper">
+                    <input type="number" id="cover" value="20" step="5">
+                    <span class="unit">mm</span>
+                </div>
+            </div>
+
+            <button class="btn-calc" onclick="calculateDesign()">Calculate & Render</button>
+        </div>
+    </nav>
+
+        <!-- Results Panel -->
+        <main class="results-panel">
+            <!-- Hero Section -->
+            <div class="hero">
+                <h1>Two-Way Slab Design</h1>
+                <p>Design reinforced concrete slabs with two-way action using the Direct Design Method (DDM) based on ACI 318M-11.</p>
+            </div>
+
+            
+            <!-- Visualization -->
+            <div class="visualization-card">
+                <h4 style="margin-bottom: 1rem; width:100%; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                    Slab Detailing Visualization (Plan View)
+                    <button onclick="open3DModal()" style="padding: 6px 12px; background: var(--sidebar-bg); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-cube"></i> View 3D Model
+                    </button>
+                </h4>
+                <canvas id="slabCanvas" width="700" height="500"></canvas>
+                <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">*Visualization represents reinforcement in the direction of analysis ($L_1$)</p>
+            </div>
+
+            <!-- Summary -->
+            <div class="card">
+                <div class="summary-header">Design Calculations & Checks</div>
+                <div id="output">
+                    <p style="color: #64748b; font-style: italic;">Adjust inputs and click "Calculate" to generate results.</p>
+                </div>
+            </div>
+
+        </main>
+
+    <script>
+        // Constants
+        const CONCRETE_DENSITY = 24; // kN/m^3
+        const E_STEEL = 200000; // MPa
+        let lastDesignData = null;
+
+        function calculateDesign() {
+            // 1. Get Inputs
+            const type = document.getElementById('spanType').value;
+            const l1 = parseFloat(document.getElementById('l1').value); // Long Span
+            const l2 = parseFloat(document.getElementById('l2').value); // Short Span
+            const col = parseFloat(document.getElementById('colSize').value);
+            const h = parseFloat(document.getElementById('thickness').value);
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const w_sdl = parseFloat(document.getElementById('wd').value);
+            const w_l = parseFloat(document.getElementById('wl').value);
+            const db = parseFloat(document.getElementById('barSize').value);
+            const cover = parseFloat(document.getElementById('cover').value);
+
+            const out = document.getElementById('output');
+            out.innerHTML = ""; // Clear previous results
+
+            // --- Preliminary Calculations ---
+            
+            // Clear Span (ln) for L1
+            const ln_l1 = l1 - col;
+            
+            // Effective Depth (d) - Avg for two way, usually take larger depth for primary, smaller for secondary
+            // Here assuming average d for calculation simplicity in module
+            const d = h - cover - db; 
+
+            // Loads
+            const w_self = (h / 1000) * CONCRETE_DENSITY; // kN/m^2
+            const w_d_total = w_sdl + w_self;
+            const w_u = 1.2 * w_d_total + 1.6 * w_l; // Factored Load kN/m^2
+
+            // --- L1 Direction Analysis (Span = L1, Width = L2) ---
+            const ln1 = l1 - col;
+            const ln1_m = ln1 / 1000;
+            const l2_m = l2 / 1000;
+            const Mo1 = (w_u * l2_m * Math.pow(ln1_m, 2)) / 8; // kNm
+
+            // --- CODE CHECKS ---
+
+            // 1. Thickness Check (ACI 9.5.3 / Metric Equiv)
+            // Simply supported approx ln/20, Continuous approx ln/33
+            const ln_max = Math.max(l1, l2) - col;
+            let h_min;
+            if (type === 'simple') {
+                h_min = ln_max / 20;
+            } else {
+                h_min = ln_max / 33; 
+            }
+            
+            // Fy correction factor for deflection control
+            const fy_factor = (0.8 + (fy / 1400)); // Simplified ACI Metric factor
+            // Not strictly applying Eq 9-12/13 for brevity, using table logic approximation
+            
+            let thickCheckHTML = "";
+            if (h >= h_min) {
+                thickCheckHTML = `<span class="status-badge status-ok">OK</span> Provided ${h}mm $\\ge$ Min ${h_min.toFixed(0)}mm`;
+            } else {
+                thickCheckHTML = `<span class="status-badge status-fail">FAIL</span> Thickness too small (Min ${h_min.toFixed(0)}mm)`;
+            }
+
+            const phi = 0.9;
+
+            function getSpacing(Moment, width_m, d_eff) {
+                if (Moment <= 0) return {spacing: 0, area: 0, status: "N/A", s_max: 0};
+                let As_total = (Moment * 1000000) / (phi * fy * 0.9 * d_eff);
+                let min_steel = 0.0018 * (width_m * 1000) * h;
+                if (As_total < min_steel) As_total = min_steel;
+                const A_bar = (Math.PI * Math.pow(db, 2)) / 4;
+                let s = (width_m * 1000) / (As_total / A_bar);
+                const s_max = Math.min(2 * h, 450);
+                if (s > s_max) s = s_max;
+                
+                const clear_s = s - db;
+                const min_clear_s = Math.max(db, 25);
+                let status = clear_s < min_clear_s ? "Congested" : "OK";
+                return { spacing: Math.floor(s), area: As_total, status: status, s_max: s_max };
+            }
+
+            // L1 Moments
+            let M1_neg = (type === 'continuous') ? 0.65 * Mo1 : 0;
+            let M1_pos = (type === 'continuous') ? 0.35 * Mo1 : Mo1;
+            const M1_neg_CS = M1_neg * 0.75;
+            const M1_pos_CS = M1_pos * 0.60;
+            const M1_pos_MS = M1_pos * 0.40;
+
+            const design1_CS_Pos = getSpacing(M1_pos_CS, l2_m / 2, d);
+            const design1_MS_Pos = getSpacing(M1_pos_MS, l2_m / 2, d);
+            const design1_CS_Neg = (type === 'continuous') ? getSpacing(M1_neg_CS, l2_m / 2, d) : {spacing: 0, area:0};
+
+            // --- L2 Direction Analysis (Span = L2, Width = L1) ---
+            const ln2 = l2 - col;
+            const ln2_m = ln2 / 1000;
+            const l1_m = l1 / 1000;
+            const Mo2 = (w_u * l1_m * Math.pow(ln2_m, 2)) / 8;
+
+            let M2_neg = (type === 'continuous') ? 0.65 * Mo2 : 0;
+            let M2_pos = (type === 'continuous') ? 0.35 * Mo2 : Mo2;
+            const M2_neg_CS = M2_neg * 0.75;
+            const M2_pos_CS = M2_pos * 0.60;
+            const M2_pos_MS = M2_pos * 0.40;
+
+            const design2_CS_Pos = getSpacing(M2_pos_CS, l1_m / 2, d - db);
+            const design2_MS_Pos = getSpacing(M2_pos_MS, l1_m / 2, d - db);
+            const design2_CS_Neg = (type === 'continuous') ? getSpacing(M2_neg_CS, l1_m / 2, d - db) : {spacing: 0, area:0};
+
+            const filters = {
+                showPos: document.getElementById('showPos').checked,
+                showNeg: document.getElementById('showNeg').checked,
+                showL1: document.getElementById('showL1').checked,
+                showL2: document.getElementById('showL2').checked
+            };
+
+            // Store data for 3D
+            lastDesignData = {
+                l1, l2, col, h, fc, fy, db, cover, type,
+                d1: { cs_pos: design1_CS_Pos.spacing, ms_pos: design1_MS_Pos.spacing, cs_neg: design1_CS_Neg.spacing },
+                d2: { cs_pos: design2_CS_Pos.spacing, ms_pos: design2_MS_Pos.spacing, cs_neg: design2_CS_Neg.spacing },
+                filters
+            };
+
+            // 3. Shear Check (One Way)
+            // Vu at d from face
+            const Vu_1way = w_u * (ln1_m / 2 - d/1000); // kN per m width
+            // Vc = 0.17 * lambda * sqrt(fc) * b * d (SI Metric)
+            // lambda = 1 (normal weight)
+            const phi_v = 0.75;
+            const Vc_1way = 0.17 * Math.sqrt(fc) * 1000 * d / 1000; // kN
+            const phiVc = phi_v * Vc_1way;
+            
+            let shearStatus = (Vu_1way < phiVc) ? 
+                `<span class="status-badge status-ok">OK</span>` : 
+                `<span class="status-badge status-fail">FAIL</span>`;
+
+            // 4. Deflection Check (Immediate)
+            // Simplified 5/384 * w l^4 / EI
+            // E for concrete = 4700 sqrt(fc)
+            const Ec = 4700 * Math.sqrt(fc);
+            const Ig = (1000 * Math.pow(h, 3)) / 12; // per meter
+            // Service Load
+            const w_service = w_d_total + w_l; // kN/m
+            // Delta in mm
+            const delta_elastic = (5 * w_service * Math.pow(ln1, 4)) / (384 * Ec * Ig) * 1000; // factors adjust units approx
+            // Note: This is simplified uncracked. 
+            // Allowable L/360
+            const delta_allow = ln_max / 360;
+            
+            let defStatus = (delta_elastic < delta_allow) ?
+                `<span class="status-badge status-ok">OK</span>` :
+                `<span class="status-badge status-warning">CHECK</span>`;
+
+
+            // --- RENDER OUTPUT ---
+            
+            let html = `
+                <div class="result-item"><strong>1. Geometry & Loads:</strong><br>
+                Clear Span ($l_n$): ${ln_l1.toFixed(0)} mm<br>
+                Effective Depth ($d$): ${d.toFixed(1)} mm<br>
+                Factored Load ($w_u$): ${w_u.toFixed(2)} kN/m²<br>
+                Total Static Moment ($M_{o1}$): ${Mo1.toFixed(1)} kNm
+                </div>
+
+                <div class="result-item"><strong>2. Thickness Check:</strong><br>
+                Provided: ${h} mm ${thickCheckHTML}
+                </div>
+
+                <div class="result-item"><strong>3. Flexural Design (Reinforcement):</strong><br>
+                <p style="font-weight:600; margin-top:10px;">Direction $L_1$ (Span=${l1}mm):</p>
+                <table style="width:100%; border-collapse: collapse; margin-top:5px; font-size:0.9rem;">
+                    <tr style="border-bottom:1px solid #ddd; text-align:left;">
+                        <th>Location</th>
+                        <th>Moment (kNm)</th>
+                        <th>Req. $A_s$ (mm²)</th>
+                        <th>Detailing (${db}mm bars)</th>
+                    </tr>
+                    <tr>
+                        <td>Col Strip (+M)</td>
+                        <td>${M1_pos_CS.toFixed(1)}</td>
+                        <td>${design1_CS_Pos.area.toFixed(0)}</td>
+                        <td><strong>@ ${design1_CS_Pos.spacing} mm</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Mid Strip (+M)</td>
+                        <td>${M1_pos_MS.toFixed(1)}</td>
+                        <td>${design1_MS_Pos.area.toFixed(0)}</td>
+                        <td><strong>@ ${design1_MS_Pos.spacing} mm</strong></td>
+                    </tr>
+                    ${type === 'continuous' ? `
+                    <tr>
+                        <td>Col Strip (-M)</td>
+                        <td>${M1_neg_CS.toFixed(1)}</td>
+                        <td>${design1_CS_Neg.area.toFixed(0)}</td>
+                        <td><strong>@ ${design1_CS_Neg.spacing} mm</strong></td>
+                    </tr>` : ''}
+                </table>
+
+                <p style="font-weight:600; margin-top:10px;">Direction $L_2$ (Span=${l2}mm):</p>
+                <table style="width:100%; border-collapse: collapse; margin-top:5px; font-size:0.9rem;">
+                    <tr style="border-bottom:1px solid #ddd; text-align:left;">
+                        <th>Location</th>
+                        <th>Moment (kNm)</th>
+                        <th>Req. $A_s$ (mm²)</th>
+                        <th>Detailing (${db}mm bars)</th>
+                    </tr>
+                    <tr>
+                        <td>Col Strip (+M)</td>
+                        <td>${M2_pos_CS.toFixed(1)}</td>
+                        <td>${design2_CS_Pos.area.toFixed(0)}</td>
+                        <td><strong>@ ${design2_CS_Pos.spacing} mm</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Mid Strip (+M)</td>
+                        <td>${M2_pos_MS.toFixed(1)}</td>
+                        <td>${design2_MS_Pos.area.toFixed(0)}</td>
+                        <td><strong>@ ${design2_MS_Pos.spacing} mm</strong></td>
+                    </tr>
+                    ${type === 'continuous' ? `
+                    <tr>
+                        <td>Col Strip (-M)</td>
+                        <td>${M2_neg_CS.toFixed(1)}</td>
+                        <td>${design2_CS_Neg.area.toFixed(0)}</td>
+                        <td><strong>@ ${design2_CS_Neg.spacing} mm</strong></td>
+                    </tr>` : ''}
+                </table>
+                <small style="color:#64748b;">Max Spacing Limit: ${Math.min(2*h, 450).toFixed(0)} mm applied.</small>
+                </div>
+
+                <div class="result-item"><strong>4. Shear Check (One-Way):</strong><br>
+                $V_u$ (at distance d): ${Vu_1way.toFixed(1)} kN/m<br>
+                Capacity $\\phi V_c$: ${phiVc.toFixed(1)} kN/m<br>
+                Status: ${shearStatus}
+                </div>
+
+                <div class="result-item"><strong>5. Deflection (Elastic Uncracked):</strong><br>
+                Calculated $\\Delta$: ${delta_elastic.toFixed(1)} mm<br>
+                Limit ($L/360$): ${delta_allow.toFixed(1)} mm<br>
+                Status: ${defStatus}
+                </div>
+
+                <div class="result-item">
+                    <strong>6. Reinforcement Schedule:</strong><br>
+                    <table style="width:100%; border-collapse:collapse; font-size:0.9rem; margin-top:10px;">
+                        <thead>
+                            <tr style="background:#f8fafc; border-bottom:2px solid #eee;"><th style="padding:8px; text-align:left;">Location</th><th style="padding:8px; text-align:left;">Bar Size</th><th style="padding:8px; text-align:left;">Spacing</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L1 Col Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design1_CS_Pos.spacing} mm</td></tr>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L1 Mid Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design1_MS_Pos.spacing} mm</td></tr>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L2 Col Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design2_CS_Pos.spacing} mm</td></tr>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L2 Mid Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design2_MS_Pos.spacing} mm</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            out.innerHTML = html;
+            if (window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+
+            // --- DRAW CANVAS ---
+            drawSlab(l1, l2, col, type, 
+                { cs_pos: design1_CS_Pos.spacing, ms_pos: design1_MS_Pos.spacing, cs_neg: design1_CS_Neg.spacing },
+                { cs_pos: design2_CS_Pos.spacing, ms_pos: design2_MS_Pos.spacing, cs_neg: design2_CS_Neg.spacing },
+                filters, db
+            );
+        }
+
+        function drawSlab(l1, l2, col, type, d1, d2, filters, db) {
+            const canvas = document.getElementById('slabCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Reset
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const padding = 60;
+            const drawWidth = canvas.width - (padding * 2);
+            const drawHeight = canvas.height - (padding * 2);
+            
+            // Scale factors to fit slab in canvas
+            // We want to draw a rectangle representing L1 x L2
+            // L1 is usually horizontal in plan view context here
+            const scaleX = drawWidth / l1;
+            const scaleY = drawHeight / l2;
+            const scale = Math.min(scaleX, scaleY);
+            
+            const rectW = l1 * scale;
+            const rectH = l2 * scale;
+            
+            const startX = (canvas.width - rectW) / 2;
+            const startY = (canvas.height - rectH) / 2;
+
+            // 1. Draw Slab Outline
+            ctx.strokeStyle = "#0f172a";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(startX, startY, rectW, rectH);
+            ctx.fillStyle = "#f8fafc";
+            ctx.fillRect(startX, startY, rectW, rectH);
+
+            // 2. Draw Columns
+            const colW = col * scale;
+            const colH = col * scale;
+            ctx.fillStyle = "#cbd5e1";
+            
+            const colPositions = [
+                [startX - colW/2, startY - colH/2],
+                [startX + rectW - colW/2, startY - colH/2],
+                [startX - colW/2, startY + rectH - colH/2],
+                [startX + rectW - colW/2, startY + rectH - colH/2]
+            ];
+
+            colPositions.forEach(pos => {
+                ctx.fillRect(pos[0], pos[1], colW, colH);
+                ctx.strokeRect(pos[0], pos[1], colW, colH);
+            });
+
+            // 3. Draw Column Strips vs Middle Strips (Dashed Lines)
+            const cs_width1 = (Math.min(l1, l2) / 4) * scale;
+            const cs_width2 = (Math.min(l1, l2) / 4) * scale;
+            
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 1;
+            
+            // Horizontal CS Boundaries
+            ctx.beginPath(); ctx.moveTo(startX, startY + cs_width1); ctx.lineTo(startX + rectW, startY + cs_width1); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(startX, startY + rectH - cs_width1); ctx.lineTo(startX + rectW, startY + rectH - cs_width1); ctx.stroke();
+
+            // Vertical CS Boundaries
+            ctx.beginPath(); ctx.moveTo(startX + cs_width2, startY); ctx.lineTo(startX + cs_width2, startY + rectH); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(startX + rectW - cs_width2, startY); ctx.lineTo(startX + rectW - cs_width2, startY + rectH); ctx.stroke();
+
+            ctx.setLineDash([]);
+
+            // 4. Draw Rebar Representations
+            
+            // L1 Direction (Horizontal)
+            if (filters.showL1) {
+                if (filters.showPos) {
+                    drawBarsH(startY + cs_width1, startY + rectH - cs_width1, d1.ms_pos, "#3b82f6", `L1 MS Pos: Ø${db}@${d1.ms_pos}`);
+                    drawBarsH(startY, startY + cs_width1, d1.cs_pos, "#10b981", `L1 CS Pos: Ø${db}@${d1.cs_pos}`);
+                    drawBarsH(startY + rectH - cs_width1, startY + rectH, d1.cs_pos, "#10b981", "");
+                }
+                if (filters.showNeg && type === 'continuous') {
+                    drawNegBarsH(startY, startY + cs_width1, d1.cs_neg, "#ef4444", `L1 CS Neg: Ø${db}@${d1.cs_neg}`);
+                    drawNegBarsH(startY + rectH - cs_width1, startY + rectH, d1.cs_neg, "#ef4444", "");
+                }
+            }
+
+            // L2 Direction (Vertical)
+            if (filters.showL2) {
+                if (filters.showPos) {
+                    drawBarsV(startX + cs_width2, startX + rectW - cs_width2, d2.ms_pos, "#3b82f6", `L2 MS Pos: Ø${db}@${d2.ms_pos}`);
+                    drawBarsV(startX, startX + cs_width2, d2.cs_pos, "#10b981", `L2 CS Pos: Ø${db}@${d2.cs_pos}`);
+                    drawBarsV(startX + rectW - cs_width2, startX + rectW, d2.cs_pos, "#10b981", "");
+                }
+                if (filters.showNeg && type === 'continuous') {
+                    drawNegBarsV(startX, startX + cs_width2, d2.cs_neg, "#ef4444", `L2 CS Neg: Ø${db}@${d2.cs_neg}`);
+                    drawNegBarsV(startX + rectW - cs_width2, startX + rectW, d2.cs_neg, "#ef4444", "");
+                }
+            }
+
+            function drawBarsH(yStart, yEnd, spacing_mm, color, label) {
+                const stripH = yEnd - yStart;
+                const spacing_px = spacing_mm * scale;
+                let drawSpacing = Math.max(spacing_px, 8); 
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                for(let y = yStart + drawSpacing/2; y < yEnd; y += drawSpacing) {
+                    ctx.beginPath(); ctx.moveTo(startX + 10, y); ctx.lineTo(startX + rectW - 10, y); ctx.stroke();
+                }
+                if (label) {
+                    ctx.fillStyle = "#0f172a"; ctx.font = "11px Inter"; ctx.textAlign = "center";
+                    ctx.fillText(label, startX + rectW/2, yStart + stripH/2 + 4);
+                }
+            }
+
+            function drawBarsV(xStart, xEnd, spacing_mm, color, label) {
+                const stripW = xEnd - xStart;
+                const spacing_px = spacing_mm * scale;
+                let drawSpacing = Math.max(spacing_px, 8);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                for(let x = xStart + drawSpacing/2; x < xEnd; x += drawSpacing) {
+                    ctx.beginPath(); ctx.moveTo(x, startY + 10); ctx.lineTo(x, startY + rectH - 10); ctx.stroke();
+                }
+                if (label) {
+                    ctx.save();
+                    ctx.translate(xStart + stripW/2, startY + rectH/2);
+                    ctx.rotate(-Math.PI/2);
+                    ctx.fillStyle = "#0f172a"; ctx.font = "11px Inter"; ctx.textAlign = "center";
+                    ctx.fillText(label, 0, 0);
+                    ctx.restore();
+                }
+            }
+
+            function drawNegBarsH(yStart, yEnd, spacing_mm, color, label) {
+                if (spacing_mm <= 0) return;
+                const stripH = yEnd - yStart;
+                const spacing_px = spacing_mm * scale;
+                let drawSpacing = Math.max(spacing_px, 8);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                const barLen = 0.3 * l1 * scale;
+                for(let y = yStart + drawSpacing/2; y < yEnd; y += drawSpacing) {
+                    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(startX + barLen, y); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(startX + rectW, y); ctx.lineTo(startX + rectW - barLen, y); ctx.stroke();
+                }
+                if (label) {
+                    ctx.fillStyle = color; ctx.font = "bold 11px Inter"; ctx.textAlign = "center";
+                    ctx.fillText(label, startX + barLen/2, yStart + stripH/2 + 4);
+                }
+            }
+
+            function drawNegBarsV(xStart, xEnd, spacing_mm, color, label) {
+                if (spacing_mm <= 0) return;
+                const stripW = xEnd - xStart;
+                const spacing_px = spacing_mm * scale;
+                let drawSpacing = Math.max(spacing_px, 8);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                const barLen = 0.3 * l2 * scale;
+                for(let x = xStart + drawSpacing/2; x < xEnd; x += drawSpacing) {
+                    ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, startY + barLen); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(x, startY + rectH); ctx.lineTo(x, startY + rectH - barLen); ctx.stroke();
+                }
+                if (label) {
+                    ctx.save();
+                    ctx.translate(xStart + stripW/2, startY + barLen/2);
+                    ctx.rotate(-Math.PI/2);
+                    ctx.fillStyle = color; ctx.font = "bold 11px Inter"; ctx.textAlign = "center";
+                    ctx.fillText(label, 0, 0);
+                    ctx.restore();
+                }
+            }
+
+            // 5. Annotations (L1, L2)
+            ctx.fillStyle = "#0f172a"; ctx.font = "bold 14px Inter"; ctx.textAlign = "center";
+            ctx.fillText(`L1 = ${l1} mm`, startX + rectW/2, startY - 25);
+            ctx.save(); ctx.translate(startX - 35, startY + rectH/2); ctx.rotate(-Math.PI/2);
+            ctx.fillText(`L2 = ${l2} mm`, 0, 0); ctx.restore();
+        }
+
+        // --- 3D VISUALIZATION LOGIC ---
+        let scene, camera, renderer, controls;
+
+        function open3DModal() {
+            if (!lastDesignData) return;
+            document.getElementById('modal3d').style.display = 'flex';
+            init3DScene();
+        }
+
+        function close3DModal() {
+            document.getElementById('modal3d').style.display = 'none';
+            if (renderer) {
+                renderer.dispose();
+                const container = document.getElementById('threeContainer');
+                if (container.firstChild) container.removeChild(renderer.domElement);
+            }
+        }
+
+        function init3DScene() {
+            const container = document.getElementById('threeContainer');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f2f5);
+
+            camera = new THREE.PerspectiveCamera(45, width / height, 10, 50000);
+            camera.position.set(lastDesignData.l1 * 0.8, lastDesignData.l1 * 0.6, lastDesignData.l2 * 0.8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(width, height);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            
+            scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(1, 1, 1);
+            scene.add(sun);
+
+            const data = lastDesignData;
+            const { l1, l2, h, col, cover, db, filters, d1, d2, type } = data;
+
+            // Slab (Transparent)
+            const slab = new THREE.Mesh(
+                new THREE.BoxGeometry(l1, h, l2),
+                new THREE.MeshPhongMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.3 })
+            );
+            scene.add(slab);
+
+            // Columns
+            const colGeom = new THREE.BoxGeometry(col, 1000, col);
+            const colMat = new THREE.MeshPhongMaterial({ color: 0x475569 });
+            [ [1,1], [-1,1], [1,-1], [-1,-1] ].forEach(s => {
+                const c = new THREE.Mesh(colGeom, colMat);
+                c.position.set(s[0]*(l1/2 - col/2), -500 - h/2, s[1]*(l2/2 - col/2));
+                scene.add(c);
+            });
+
+            const barMatPos = new THREE.MeshPhongMaterial({ color: 0x3b82f6 });
+            const barMatNeg = new THREE.MeshPhongMaterial({ color: 0xef4444 });
+            const cs_w1 = Math.min(l1, l2) / 4;
+            const cs_w2 = Math.min(l1, l2) / 4;
+
+            // L1 Bars (X-axis)
+            if (filters.showL1) {
+                if (filters.showPos) {
+                    addBars3D(l1-40, db, d1.ms_pos, -l2/2 + cs_w1, l2/2 - cs_w1, -h/2 + cover + db/2, 'x', barMatPos);
+                    addBars3D(l1-40, db, d1.cs_pos, -l2/2, -l2/2 + cs_w1, -h/2 + cover + db/2, 'x', barMatPos);
+                    addBars3D(l1-40, db, d1.cs_pos, l2/2 - cs_w1, l2/2, -h/2 + cover + db/2, 'x', barMatPos);
+                }
+                if (filters.showNeg && type === 'continuous') {
+                    const len = 0.3 * l1;
+                    [[-1, -l2/2, -l2/2+cs_w1], [1, -l2/2, -l2/2+cs_w1], [-1, l2/2-cs_w1, l2/2], [1, l2/2-cs_w1, l2/2]].forEach(p => {
+                        addBars3D(len, db, d1.cs_neg, p[1], p[2], h/2 - cover - db/2, 'x', barMatNeg, p[0]*(l1/2 - len/2));
+                    });
+                }
+            }
+            // L2 Bars (Z-axis)
+            if (filters.showL2) {
+                if (filters.showPos) {
+                    addBars3D(l2-40, db, d2.ms_pos, -l1/2 + cs_w2, l1/2 - cs_w2, -h/2 + cover + db + db/2, 'z', barMatPos);
+                    addBars3D(l2-40, db, d2.cs_pos, -l1/2, -l1/2 + cs_w2, -h/2 + cover + db + db/2, 'z', barMatPos);
+                    addBars3D(l2-40, db, d2.cs_pos, l1/2 - cs_w2, l1/2, -h/2 + cover + db + db/2, 'z', barMatPos);
+                }
+                if (filters.showNeg && type === 'continuous') {
+                    const len = 0.3 * l2;
+                    [[-1, -l1/2, -l1/2+cs_w2], [1, -l1/2, -l1/2+cs_w2], [-1, l1/2-cs_w2, l1/2], [1, l1/2-cs_w2, l1/2]].forEach(p => {
+                        addBars3D(len, db, d2.cs_neg, p[1], p[2], h/2 - cover - db - db/2, 'z', barMatNeg, p[0]*(l2/2 - len/2));
+                    });
+                }
+            }
+            animate();
+        }
+
+        function addBars3D(len, dia, space, start, end, y, axis, mat, fixed = 0) {
+            if (space <= 0) return;
+            const geom = new THREE.CylinderGeometry(dia/2, dia/2, len, 8);
+            if (axis === 'x') geom.rotateZ(Math.PI/2); else geom.rotateX(Math.PI/2);
+            for (let p = start + space/2; p < end; p += space) {
+                const m = new THREE.Mesh(geom, mat);
+                if (axis === 'x') m.position.set(fixed, y, p); else m.position.set(p, y, fixed);
+                scene.add(m);
+            }
+        }
+
+        function animate() {
+            if (document.getElementById('modal3d').style.display === 'none') return;
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+
+        // Initial Draw on Load
+        window.onload = function() {
+            if (window.MathJax && MathJax.typeset) {
+                MathJax.typeset();
+            }
+            calculateDesign();
+        };
+
+    </script>
+</body>
+</html>

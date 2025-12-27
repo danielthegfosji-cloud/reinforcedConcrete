@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Design | Shear & Stirrups (SI)</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax for LaTeX -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        .unit {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-left: 0.5rem;
+            font-weight: 600;
+        }
+
+        /* Results & Visualization */
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .canvas-container {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+            height: 350px;
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            overflow: hidden;
+        }
+
+        canvas { max-width: 100%; max-height: 100%; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+        .status-ok { background: #d1fae5; color: #065f46; }
+        .status-fail { background: #fee2e2; color: #991b1b; }
+
+        .math-row {
+            margin: 0.5rem 0;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Shear Properties</h2>
+            
+                <div class="section-header">Material Properties</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Concrete $f'_c$ (MPa)</label>
+                        <input type="number" id="fc" value="28">
+                    </div>
+                    <div class="form-col">
+                        <label>Steel $f_{yt}$ (MPa)</label>
+                        <input type="number" id="fy" value="420">
+                    </div>
+                </div>
+
+                <div class="section-header">Geometry</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Width $b_w$ (mm)</label>
+                        <input type="number" id="bw" value="300">
+                    </div>
+                    <div class="form-col">
+                        <label>Depth $h$ (mm)</label>
+                        <input type="number" id="h" value="500">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Cover (mm)</label>
+                        <input type="number" id="cover" value="40">
+                    </div>
+                    <div class="form-col">
+                        <label>Span $L_n$ (m)</label>
+                        <input type="number" id="span" value="6.0" step="0.1">
+                    </div>
+                </div>
+
+                <div class="section-header">Loading</div>
+                <div class="form-group">
+                    <label>Factored Load $w_u$ (kN/m)</label>
+                    <input type="number" id="wu" value="65" step="0.5">
+                </div>
+
+                <div class="section-header">Reinforcement</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Bar Size</label>
+                        <select id="barSize">
+                            <option value="50">8 mm</option>
+                            <option value="79" selected>10 mm</option>
+                            <option value="113">12 mm</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label>Legs</label>
+                        <select id="legs">
+                            <option value="2">2 Legs</option>
+                            <option value="4">4 Legs</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="calc-btn" onclick="calculateShear()">
+                    <i class="fa-solid fa-calculator"></i> Calculate Design
+                </button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Shear & Stirrups Design</h1>
+            <p>Determine shear capacity ($\phi V_c$) and design vertical stirrup spacing ($s$) for rectangular beams based on ACI 318M-11.</p>
+        </div>
+
+        <div class="grid-container">
+                
+                <!-- Visualization -->
+                <div class="card">
+                    <h3 style="margin-bottom: 1rem;">Detailing Visualization</h3>
+                    <div class="canvas-container">
+                        <div style="text-align: center;">
+                            <h4 style="font-size: 0.85rem; color: #64748b;">Beam Elevation</h4>
+                            <canvas id="beamCanvas"></canvas>
+                        </div>
+                        <div style="text-align: center;">
+                            <h4 style="font-size: 0.85rem; color: #64748b;">Section Detail</h4>
+                            <canvas id="sectionCanvas"></canvas>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.85rem; color: #64748b; margin-top: 10px; text-align: center;">
+                        *Visual representation of half-span. Stirrup density indicates spacing.
+                    </p>
+                </div>
+
+                <!-- Detailed Summary -->
+                <div class="card">
+                    <h3 style="margin-bottom: 1rem;">Calculation Summary (ACI 318M-11)</h3>
+                    <div id="summaryContent" class="summary-box">
+                        <p style="color: var(--text-muted); font-style: italic;">Enter parameters and click Calculate to view results.</p>
+                    </div>
+                </div>
+
+            </div>
+    </main>
+
+    <script>
+        // SI Constants
+        const PHI_SHEAR = 0.75;
+        const LAMBDA = 1.0; // Normal weight concrete assumption
+        
+        function calculateShear() {
+            // 1. Get Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fyt = parseFloat(document.getElementById('fy').value);
+            const bw = parseFloat(document.getElementById('bw').value);
+            const h = parseFloat(document.getElementById('h').value);
+            const cover = parseFloat(document.getElementById('cover').value);
+            const Ln = parseFloat(document.getElementById('span').value); // Meters
+            const wu = parseFloat(document.getElementById('wu').value); // kN/m
+            const barArea = parseFloat(document.getElementById('barSize').value);
+            const legs = parseFloat(document.getElementById('legs').value);
+
+            // 2. Preliminary Calcs
+            // Estimate effective depth d (assume one layer of tension steel approx 25mm dia)
+            // d = h - cover - stirrup_dia (approx 10) - longitudinal_bar_radius (approx 12)
+            const d = h - cover - 10 - 12.5; 
+            const Av = barArea * legs; // Total area of stirrup legs
+            const Ln_mm = Ln * 1000;
+
+            // 3. Shear Analysis
+            // Reaction at support (Simply supported)
+            const Vu_support = (wu * Ln) / 2; // kN
+            
+            // Critical Shear at distance d from support
+            // Slope of shear diagram = -wu
+            // Vu_d = Vu_support - wu * (d/1000)
+            const Vu_critical = Vu_support - (wu * (d / 1000));
+            
+            // 4. Concrete Capacity (ACI 318M-11 Eq 11-3)
+            // Vc = 0.17 * lambda * sqrt(fc) * bw * d (result in N, convert to kN)
+            const Vc_N = 0.17 * LAMBDA * Math.sqrt(fc) * bw * d;
+            const Vc = Vc_N / 1000; // kN
+            const phiVc = PHI_SHEAR * Vc;
+            const halfPhiVc = 0.5 * phiVc;
+
+            // 5. Sanity Checks
+            // Check if section is large enough (Vs limit)
+            // Vs_max limit = 0.66 * sqrt(fc) * bw * d
+            const Vs_max_allowed_N = 0.66 * Math.sqrt(fc) * bw * d;
+            const Vs_max_allowed = Vs_max_allowed_N / 1000;
+            
+            // Required Vs at critical section
+            // Vu = phi(Vc + Vs) -> Vs_req = (Vu - phiVc) / phi
+            let Vs_req = 0;
+            if (Vu_critical > phiVc) {
+                Vs_req = (Vu_critical - phiVc) / PHI_SHEAR;
+            }
+
+            let statusHtml = "";
+            let isSectionTooSmall = false;
+
+            if (Vs_req > Vs_max_allowed) {
+                statusHtml += `<div class='summary-item'><span class='status-badge status-fail'>Section Too Small</span> <br> $V_s$ required (${Vs_req.toFixed(2)} kN) > Max Allowed (${Vs_max_allowed.toFixed(2)} kN). Increase beam size.</div>`;
+                isSectionTooSmall = true;
+            }
+
+            // Fitment Check (Is width enough for legs?)
+            // Approx: 2 * cover + 2 * stirrup_dia + (legs-1)*spacing_between_legs
+            // Rough check: can we fit legs?
+            const stirrupDia = barArea === 50 ? 8.0 : (barArea === 79 ? 10.0 : 12.0);
+            const minWidth = (2 * cover) + (2 * stirrupDia) + ((legs - 1) * 25); // 25mm min gap
+            if (bw < minWidth) {
+                statusHtml += `<div class='summary-item'><span class='status-badge status-warning'>Congestion Warning</span> <br> Beam width may be too narrow for ${legs} legs. Min width approx ${minWidth.toFixed(0)}mm.</div>`;
+            }
+
+            // 6. Stirrup Spacing Calculations
+            // Max Spacing per Code (ACI 11.4.5)
+            // If Vs <= 0.33 sqrt(fc) bw d -> s_max = min(d/2, 600mm)
+            // If Vs > 0.33 sqrt(fc) bw d -> s_max = min(d/4, 300mm)
+            const Vs_threshold_N = 0.33 * Math.sqrt(fc) * bw * d;
+            const Vs_threshold = Vs_threshold_N / 1000;
+            
+            let s_max_code;
+            if (Vs_req > Vs_threshold) {
+                s_max_code = Math.min(d / 4, 300);
+            } else {
+                s_max_code = Math.min(d / 2, 600);
+            }
+
+            // Minimum Area Requirement (ACI 11.4.6.3)
+            // Av_min = 0.062 sqrt(fc) (bw s)/fyt >= 0.35 bw s / fyt
+            // Solve for s_max based on Av provided:
+            // s_Avmin1 = (Av * fyt) / (0.062 * sqrt(fc) * bw)
+            // s_Avmin2 = (Av * fyt) / (0.35 * bw)
+            const s_Avmin1 = (Av * fyt) / (0.062 * Math.sqrt(fc) * bw);
+            const s_Avmin2 = (Av * fyt) / (0.35 * bw);
+            const s_max_Av = Math.min(s_Avmin1, s_Avmin2);
+
+            // Absolute Max Spacing allowed for the chosen bar
+            const s_max_governing = Math.min(s_max_code, s_max_Av);
+
+            // 7. Calculate Spacing at Zones
+            // Zone 1: Critical Section (d from support)
+            let s_req_critical = 9999;
+            if (Vs_req > 0) {
+                // s = (Av fyt d) / Vs
+                s_req_critical = (Av * fyt * d) / (Vs_req * 1000); // Vs in N
+            }
+            
+            // Apply Limits
+            let s_design_critical = Math.min(s_req_critical, s_max_governing);
+            
+            // Round down to nearest 10mm or 25mm for realism
+            s_design_critical = Math.floor(s_design_critical / 25) * 25;
+            if (s_design_critical < 50) s_design_critical = 50; // Practical min spacing
+
+            // Determine Zone Extents
+            // Find distance x where Vu = phiVc (Stirrups theoretically not needed for strength, but min area usually applies)
+            // Vu(x) = Vu_support - wu * x
+            // phiVc = Vu_support - wu * x_no_strength
+            // x_no_strength = (Vu_support - phiVc) / wu
+            const x_strength_limit = (Vu_support - phiVc) / wu; // meters
+
+            // Find distance x where Vu = 0.5 * phiVc (No stirrups needed at all)
+            const x_no_stirrups = (Vu_support - halfPhiVc) / wu; // meters
+
+            // 8. Generate Summary HTML
+            let summary = "";
+            
+            if (isSectionTooSmall) {
+                summary = statusHtml;
+            } else {
+                summary = `
+                    <div class="summary-item">
+                        <strong>Design Check:</strong> ${statusHtml || "<span class='status-badge status-ok'>Geometry OK</span>"}
+                    </div>
+                    <div class="summary-item">
+                        <strong>Shear Forces:</strong><br>
+                        $V_{u,support} = ${Vu_support.toFixed(1)}$ kN<br>
+                        $V_{u,critical} = ${Vu_critical.toFixed(1)}$ kN (at d = ${(d/1000).toFixed(2)} m)
+                    </div>
+                    <div class="summary-item">
+                        <strong>Concrete Capacity:</strong><br>
+                        <div class="math-row">$\\phi V_c = 0.75 \\times 0.17 \\lambda \\sqrt{f'_c} b_w d = ${phiVc.toFixed(1)}$ kN</div>
+                        $0.5 \\phi V_c = ${halfPhiVc.toFixed(1)}$ kN
+                    </div>
+                    <div class="summary-item">
+                        <strong>Steel Requirement (at critical section):</strong><br>
+                        $V_{s,req} = ${Vs_req.toFixed(1)}$ kN <br>
+                        Calc. Spacing: $s_{calc} = ${s_req_critical.toFixed(0)} \\text{ mm}$<br>
+                        Max Code Spacing: $s_{max} = ${s_max_governing.toFixed(0)} \\text{ mm}$<br>
+                        (Controlled by: ${s_max_code < s_max_Av ? 'Structural Depth/Shear' : 'Min Steel Area'})
+                    </div>
+                    <div class="summary-item" style="background-color: #eff6ff; padding: 10px; border-radius: 5px;">
+                        <strong>Final Detailing Recommendation:</strong><br>
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li><strong>Zone 1 (Support to ${(x_strength_limit).toFixed(2)}m):</strong><br>
+                                Use <strong>${legs} legs - $${getBarName(barArea).replace(' mm', ' \\text{ mm}')} @ ${s_design_critical} \\text{ mm}$</strong> c/c.
+                            </li>
+                            <li><strong>Zone 2 (${(x_strength_limit).toFixed(2)}m to ${(x_no_stirrups).toFixed(2)}m):</strong><br>
+                                Shear < $\\phi V_c$ but > $0.5 \\phi V_c$. Min stirrups required.<br>
+                                Use <strong>${legs} legs - $${getBarName(barArea).replace(' mm', ' \\text{ mm}')} @ ${Math.floor(s_max_governing/25)*25} \\text{ mm}$</strong> c/c.
+                            </li>
+                            <li><strong>Zone 3 (Beyond ${(x_no_stirrups).toFixed(2)}m):</strong><br>
+                                Theoretically no stirrups required.
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="summary-item">
+                        <h4 style="margin-bottom: 0.5rem;">Reinforcement Schedule</h4>
+                        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Stirrup Size</td><td style="padding:5px;">${getBarName(barArea)}</td></tr>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Number of Legs</td><td style="padding:5px;">${legs}</td></tr>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Zone 1 Spacing</td><td style="padding:5px;">${s_design_critical} mm</td></tr>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Zone 2 Spacing</td><td style="padding:5px;">${Math.floor(s_max_governing/25)*25} mm</td></tr>
+                            <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Yield Strength ($f_{yt}$)</td><td style="padding:5px;">${fyt} MPa</td></tr>
+                        </table>
+                    </div>
+                `;
+            }
+
+            document.getElementById('summaryContent').innerHTML = summary;
+            
+            // Re-render Latex
+            MathJax.typesetPromise();
+
+            // 9. Visualize
+            drawBeam(bw, h, cover, d, Ln, s_design_critical, Math.floor(s_max_governing/25)*25, x_strength_limit, x_no_stirrups);
+            drawSection(bw, h, cover, legs, barArea);
+        }
+
+        function getBarName(area) {
+            if (area == 50) return "8 mm";
+            if (area == 79) return "10 mm";
+            if (area == 113) return "12 mm";
+            return "Custom";
+        }
+
+        function drawBeam(bw, h, cover, d, Ln_m, s1, s2, x1_m, x2_m) {
+            const canvas = document.getElementById('beamCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Handle high resolution screens
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            if (rect.width === 0) return;
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw Beam (Profile View - Half Span)
+            const startX = 30;
+            const beamW = width - 60;
+            const beamH = Math.min(height * 0.5, 100); 
+            const beamY = (height - beamH) / 2 + 10; 
+
+            // Draw Concrete
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(startX, beamY, beamW, beamH);
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startX, beamY, beamW, beamH);
+
+            // Draw Centerline Break
+            ctx.beginPath();
+            ctx.moveTo(startX + beamW, beamY - 10);
+            ctx.lineTo(startX + beamW, beamY + beamH + 10);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'right';
+            ctx.fillText("Centerline", startX + beamW - 5, beamY + beamH + 15);
+
+            // Draw Support
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(startX - 10, beamY + beamH, 20, 10);
+
+            // Dimensions Setup
+            // Map real meters to pixels (Only drawing half span)
+            const pixelPerMeter = beamW / (Ln_m / 2);
+
+            // Draw Stirrups
+            ctx.strokeStyle = '#ef4444'; // Red for stirrups
+            ctx.lineWidth = 1.5;
+
+            let currentX_m = 0.05; // Start 50mm from support
+            
+            // Draw loop
+            while (currentX_m < Ln_m / 2) {
+                let pixelX = startX + (currentX_m * pixelPerMeter);
+                
+                // Determine spacing based on zone
+                let currentSpacing_mm;
+                let isFaint = false;
+                if (currentX_m <= x1_m) currentSpacing_mm = s1;
+                else if (currentX_m <= x2_m) currentSpacing_mm = s2;
+                else { currentSpacing_mm = s2; isFaint = true; }
+
+                if (pixelX < startX + beamW) {
+                    ctx.strokeStyle = isFaint ? '#cbd5e1' : '#ef4444';
+                    // Draw vertical stirrup line
+                    ctx.beginPath();
+                    ctx.moveTo(pixelX, beamY + 5); 
+                    ctx.lineTo(pixelX, beamY + beamH - 5); 
+                    ctx.stroke();
+                }
+
+                currentX_m += (currentSpacing_mm / 1000);
+            }
+
+            // Draw Dimensions Annotations
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '10px Inter';
+            ctx.textAlign = 'center';
+            
+            // Zone 1 Line
+            const z1_pixel = startX + (x1_m * pixelPerMeter);
+            drawDimensionLine(ctx, startX, beamY - 20, z1_pixel, beamY - 20, `Zone 1: @${s1}mm`);
+            
+            // Zone 2 Line
+            const z2_pixel = Math.min(startX + beamW, startX + (x2_m * pixelPerMeter));
+            if (z2_pixel > z1_pixel) {
+                drawDimensionLine(ctx, z1_pixel, beamY - 20, z2_pixel, beamY - 20, `Zone 2: @${s2}mm`);
+            }
+
+            // Draw Critical Section Line
+            const d_m = d / 1000;
+            const d_pixel = startX + (d_m * pixelPerMeter);
+            ctx.strokeStyle = '#3b82f6';
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.moveTo(d_pixel, beamY);
+            ctx.lineTo(d_pixel, beamY + beamH);
+            ctx.stroke();
+            ctx.fillStyle = '#3b82f6';
+            ctx.textAlign = 'left';
+            ctx.fillText("Crit. Section (d)", d_pixel + 5, beamY + beamH - 10);
+            ctx.setLineDash([]);
+        }
+
+        function drawSection(bw, h, cover, legs, barArea) {
+            const canvas = document.getElementById('sectionCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            if (rect.width === 0) return;
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const padding = 40;
+            const scale = Math.min((width - 2*padding)/bw, (height - 2*padding)/h);
+            const drawW = bw * scale;
+            const drawH = h * scale;
+            const startX = (width - drawW) / 2;
+            const startY = (height - drawH) / 2;
+
+            // Concrete
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, drawW, drawH);
+            ctx.strokeRect(startX, startY, drawW, drawH);
+
+            // Stirrup
+            const s_off = cover * scale;
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(startX + s_off, startY + s_off, drawW - 2*s_off, drawH - 2*s_off);
+            
+            // Inner legs if 4 legs
+            if (legs == 4) {
+                const innerW = drawW - 2*s_off;
+                const legX1 = startX + s_off + innerW/3;
+                const legX2 = startX + s_off +
+                ctx.beginPath();
+                ctx.moveTo(legX1, startY + s_off); ctx.lineTo(legX1, startY + drawH - s_off);
+                ctx.moveTo(legX2, startY + s_off); ctx.lineTo(legX2, startY + drawH - s_off);
+                ctx.stroke();
+            }
+
+            // Longitudinal Bars (Symbolic)
+            ctx.fillStyle = '#1e293b';
+            const r = 5;
+            ctx.beginPath();
+            ctx.arc(startX + s_off + r, startY + drawH - s_off - r, r, 0, 2*Math.PI);
+            ctx.arc(startX + drawW - s_off - r, startY + drawH - s_off - r, r, 0, 2*Math.PI);
+            ctx.arc(startX + s_off + r, startY + s_off + r, r, 0, 2*Math.PI);
+            ctx.arc(startX + drawW - s_off - r, startY + s_off + r, r, 0, 2*Math.PI);
+            ctx.fill();
+        }
+
+        function drawDimensionLine(ctx, x1, y, x2, y, text) {
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x1, y);
+            ctx.lineTo(x2, y);
+            
+            // Ticks
+            ctx.moveTo(x1, y-3);
+            ctx.lineTo(x1, y+3);
+            ctx.moveTo(x2, y-3);
+            ctx.lineTo(x2, y+3);
+            ctx.stroke();
+
+            // Text
+            const mid = (x1 + x2) / 2;
+            ctx.textAlign = 'center';
+            ctx.fillText(text, mid, y - 5);
+        }
+
+    </script>
+</body>
+</html>

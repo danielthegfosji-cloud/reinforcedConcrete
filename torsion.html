@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torsion Design (ACI 318-11 SI) | RC Design Suite</title>
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax for LaTeX Rendering -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        /* --- Results Panel --- */
+        .results-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .visualization-card {
+            background: var(--panel-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            min-height: 350px;
+            position: relative;
+            background-color: #fafafa;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 300px;
+        }
+
+        .status-banner {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-pass { background-color: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .status-fail { background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+        .status-warn { background-color: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+
+        .result-section { margin-bottom: 2rem; }
+        
+        .result-header {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 0.25rem;
+        }
+
+        .math-row {
+            margin: 0.5rem 0;
+            font-size: 0.95rem;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .note {
+            font-size: 0.85rem;
+            font-style: italic;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+        .detail-value { font-weight: 600; color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Torsion Properties</h2>
+            <form id="torsionForm">
+                <div class="section-header">Material Properties</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Concrete $f'_c$</label>
+                        <input type="number" id="fc" value="28" min="17" step="1">
+                    </div>
+                    <div class="form-col">
+                        <label>Steel $f_y$</label>
+                        <input type="number" id="fy" value="420" min="280" step="10">
+                    </div>
+                </div>
+
+                <div class="section-header">Geometry</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Width $b_w$ (mm)</label>
+                        <input type="number" id="bw" value="350" min="200" step="10">
+                    </div>
+                    <div class="form-col">
+                        <label>Height $h$ (mm)</label>
+                        <input type="number" id="h" value="650" min="200" step="10">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Clear Cover (mm)</label>
+                    <input type="number" id="cover" value="40">
+                </div>
+
+                <div class="section-header">Applied Loads</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Shear $V_u$ (kN)</label>
+                        <input type="number" id="Vu" value="190" min="0" step="1">
+                    </div>
+                    <div class="form-col">
+                        <label>Torsion $T_u$ (kNm)</label>
+                        <input type="number" id="Tu" value="30" min="0" step="1">
+                    </div>
+                </div>
+
+                <div class="section-header">Reinforcement</div>
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Stirrup Size</label>
+                        <select id="stirrupSize">
+                            <option value="10">10 mm</option>
+                            <option value="13" selected>13 mm</option>
+                            <option value="16">16 mm</option>
+                        </select>
+                    </div>
+                    <div class="form-col">
+                        <label>Long. Size</label>
+                        <select id="longSize">
+                            <option value="16">16 mm</option>
+                            <option value="19">19 mm</option>
+                            <option value="22">22 mm</option>
+                            <option value="25" selected>25 mm</option>
+                            <option value="29">29 mm</option>
+                            <option value="32">32 mm</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Lightweight Factor $\lambda$</label>
+                    <input type="number" id="lambda" value="1.0" min="0.75" max="1.0" step="0.05">
+                </div>
+
+                <button type="button" class="calc-btn" onclick="calculateTorsion()">
+                    <i class="fa-solid fa-calculator"></i> Calculate
+                </button>
+            </form>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Torsion Design & Analysis</h1>
+            <p>Calculate required transverse and longitudinal reinforcement for concrete members subjected to combined shear and torsion based on ACI 318M-11.</p>
+        </div>
+
+        <div class="results-panel">
+            
+            <!-- Visualization -->
+            <div class="visualization-card">
+                <div style="text-align: center;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 5px;">Section Detail</h4>
+                    <canvas id="beamCanvas"></canvas>
+                </div>
+                <div style="text-align: center;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 5px;">Beam Elevation</h4>
+                    <canvas id="elevationCanvas"></canvas>
+                </div>
+                <div style="position:absolute; bottom: 10px; right: 10px; font-size: 0.8rem; color: #94a3b8;">
+                    *Not to scale
+                </div>
+            </div>
+
+            <!-- Calculation Summary -->
+            <div class="card" id="resultsArea" style="display:none;">
+                <div id="statusBanner" class="status-banner"></div>
+
+                <!-- 1. Threshold Torsion -->
+                <div class="result-section">
+                    <div class="result-header">1. Threshold Torsion Check</div>
+                    <div id="res_step1" class="math-row"></div>
+                    <div class="note" id="note_threshold"></div>
+                </div>
+                <hr>
+
+                <!-- 2. Section Capacity -->
+                <div class="result-section">
+                    <div class="result-header">2. Section Capacity Check (Combined Stress)</div>
+                    <div id="res_step2_core" class="math-row"></div>
+                    <div id="res_step2_vc" class="math-row"></div>
+                    <div id="res_step2_check" class="math-row"></div>
+                    <div class="note" id="note_section"></div>
+                </div>
+                <hr>
+
+                <!-- 3. Transverse Reinforcement -->
+                <div class="result-section">
+                    <div class="result-header">3. Required Transverse Reinforcement (Stirrups)</div>
+                    <div id="res_step3" class="math-row"></div>
+                </div>
+                <hr>
+
+                <!-- 4. Spacing Limits -->
+                <div class="result-section">
+                    <div class="result-header">4. Spacing Limits</div>
+                    <div id="res_step4" class="math-row"></div>
+                    <div style="margin-top: 10px; font-weight: 700; color: var(--text-dark);">
+                        Recommended Spacing: <span id="res_FinalSpacing" class="detail-value"></span> mm
+                    </div>
+                </div>
+                <hr>
+
+                <!-- 5. Longitudinal Reinforcement -->
+                <div class="result-section">
+                    <div class="result-header">5. Required Longitudinal Reinforcement ($A_l$)</div>
+                    <div id="res_step5" class="math-row"></div>
+                    <div class="note" id="note_fitment"></div>
+                </div>
+            </div>
+            
+            <!-- Default State -->
+            <div class="card" id="welcomeMsg" style="text-align:center; color: var(--text-muted);">
+                <i class="fa-solid fa-arrow-left" style="margin-right:5px;"></i> Enter parameters and click Calculate to see results.
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // --- Reference Data for SI Bars ---
+        const BAR_DATA = {
+            10: { d: 9.5, area: 71 },
+            13: { d: 12.7, area: 129 },
+            16: { d: 15.9, area: 199 },
+            19: { d: 19.1, area: 284 },
+            22: { d: 22.2, area: 387 },
+            25: { d: 25.4, area: 510 },
+            29: { d: 28.7, area: 645 },
+            32: { d: 32.3, area: 819 }
+        };
+
+        function calculateTorsion() {
+            // 1. Get Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const bw = parseFloat(document.getElementById('bw').value);
+            const h = parseFloat(document.getElementById('h').value);
+            const Vu = parseFloat(document.getElementById('Vu').value) * 1000; // Convert to N
+            const Tu = parseFloat(document.getElementById('Tu').value) * 1000000; // Convert to N-mm
+            const cover = parseFloat(document.getElementById('cover').value);
+            const lambda = parseFloat(document.getElementById('lambda').value);
+            
+            const stirrupSize = parseInt(document.getElementById('stirrupSize').value);
+            const longSize = parseInt(document.getElementById('longSize').value);
+
+            const db_stirrup = BAR_DATA[stirrupSize].d;
+            const Ab_stirrup = BAR_DATA[stirrupSize].area;
+            const db_long = BAR_DATA[longSize].d;
+            const Ab_long = BAR_DATA[longSize].area;
+
+            const phi = 0.75; // Shear/Torsion
+            
+            // 2. Geometric Properties
+            const Acp = bw * h;
+            const pcp = 2 * (bw + h);
+            
+            // Effective depth (approximate d)
+            const d = h - cover - db_stirrup - db_long/2;
+
+            // Dimensions of stirrup centerline
+            const x1 = bw - 2 * (cover + db_stirrup/2);
+            const y1 = h - 2 * (cover + db_stirrup/2);
+            
+            const Aoh = x1 * y1;
+            const ph = 2 * (x1 + y1);
+            const Ao = 0.85 * Aoh;
+
+            // 3. Threshold Torsion Check (ACI 11.5.1)
+            // Tth = phi * 0.083 * lambda * sqrt(fc) * (Acp^2 / pcp)
+            const Tth = phi * 0.083 * lambda * Math.sqrt(fc) * (Math.pow(Acp, 2) / pcp);
+
+            // 4. Cross-Sectional Limit Check (ACI 11.5.3.1 / Eq 11-18)
+            // Vc = 0.17 * lambda * sqrt(fc) * bw * d
+            const Vc = 0.17 * lambda * Math.sqrt(fc) * bw * d;
+            
+            const v_stress = Vu / (bw * d);
+            const t_stress = (Tu * ph) / (1.7 * Math.pow(Aoh, 2));
+            const lhs_stress = Math.sqrt(Math.pow(v_stress, 2) + Math.pow(t_stress, 2));
+            
+            // Limit: phi * (Vc/bwd + 0.66*sqrt(fc))
+            // Note: Vc/bwd simplifies to 0.17*lambda*sqrt(fc)
+            const max_stress = phi * ((Vc / (bw*d)) + 0.66 * Math.sqrt(fc));
+
+            // 5. Transverse Reinforcement
+            let Ats_req = 0; // Area of torsion steel per spacing s (one leg)
+            let Avs_req = 0; // Area of shear steel per spacing s (two legs)
+            
+            // Torsion Steel (Eq 11-21)
+            // Tn = 2 * Ao * At * fyt * cot(theta) / s -> At/s = Tn / (2 Ao fyt cot(theta))
+            // Assume theta = 45 deg, cot(45) = 1
+            if (Tu > Tth) {
+                const Tn = Tu / phi;
+                Ats_req = Tn / (2 * Ao * fy * 1);
+            }
+
+            // Shear Steel
+            if (Vu > 0.5 * phi * Vc) {
+                const Vs = (Vu - phi * Vc) / phi;
+                if (Vs > 0) {
+                    Avs_req = Vs / (fy * d);
+                }
+            }
+
+            // Combined Transverse (2 legs basis)
+            // Total(Av+t)/s = 2*At/s + Av/s
+            const total_Avt_s = 2 * Ats_req + Avs_req;
+            
+            // Min Transverse Steel (Eq 11-23 adapted for SI: 0.062 sqrt(fc) bw s / fyt >= 0.35 bw s / fyt)
+            // So min (Av+2At)/s = max(0.062 sqrt(fc) bw / fy, 0.35 bw / fy)
+            const min_trans_1 = 0.062 * Math.sqrt(fc) * bw / fy;
+            const min_trans_2 = 0.35 * bw / fy;
+            const min_trans_s = Math.max(min_trans_1, min_trans_2);
+
+            const design_Avt_s = Math.max(total_Avt_s, min_trans_s);
+
+            // Required Spacing for chosen stirrup
+            // Area provided = 2 * Ab_stirrup
+            // s_req = Area_prov / design_Avt_s
+            let s_req = (2 * Ab_stirrup) / design_Avt_s;
+
+            // Spacing Limits
+            const max_s_ph8 = ph / 8;
+            const max_s_300 = 300;
+            // Shear limits: d/2 if Vs < 0.33 sqrt(fc) bwd, else d/4
+            const Vs_limit_check = 0.33 * Math.sqrt(fc) * bw * d;
+            let current_Vs = (Vu - phi * Vc)/phi; // approximate
+            if(current_Vs < 0) current_Vs = 0;
+            const max_s_shear = (current_Vs > Vs_limit_check) ? d/4 : d/2;
+
+            const final_max_s = Math.min(max_s_ph8, max_s_300, max_s_shear);
+            
+            let final_s = Math.min(s_req, final_max_s);
+            // Round down to nearest 10mm
+            final_s = Math.floor(final_s / 10) * 10;
+            if(final_s < 50) final_s = 50; // Practical minimum
+
+            // 6. Longitudinal Reinforcement (Al)
+            // Al = (At/s) * ph * (fyt/fy) * cot^2(theta)
+            // Using calculated At/s, not min
+            const Al_eq = Ats_req * ph * (fy/fy) * 1; 
+
+            // Min Al (Eq 11-24)
+            // 0.42 * sqrt(fc) * Acp / fy - (At/s)*ph*(fyt/fy)
+            // At/s here cannot be less than bw / (6 fy)
+            const min_Ats_term = Math.max(Ats_req, bw / (6 * fy));
+            const Al_min_val = (0.42 * Math.sqrt(fc) * Acp / fy) - (min_Ats_term * ph * 1);
+            
+            const Al_final = Math.max(Al_eq, Al_min_val);
+
+            // Number of bars
+            let num_bars = Math.ceil(Al_final / Ab_long);
+            if (num_bars < 4) num_bars = 4; // Min one in each corner
+
+            // 7. Fitment Check
+            // Check spacing between bars. Need bar in each corner.
+            // Simplified check: Total perimeter available / number of bars > (bar dia + min gap)
+            // Min gap usually greater of 25mm or bar dia.
+            const min_gap = Math.max(25, db_long);
+            const perimeter_len = 2 * ((bw - 2*cover - 2*db_stirrup - db_long) + (h - 2*cover - 2*db_stirrup - db_long));
+            // Available space for gaps = Perimeter - (num_bars * db_long)
+            const available_gap_space = perimeter_len - (num_bars * db_long);
+            const avg_gap = available_gap_space / num_bars;
+
+            const fits = avg_gap >= min_gap;
+
+
+            // --- DISPLAY RESULTS ---
+            document.getElementById('welcomeMsg').style.display = 'none';
+            document.getElementById('resultsArea').style.display = 'block';
+
+            // Populate Section 1
+            document.getElementById('res_step1').innerHTML = `
+                $$A_{cp} = b_w h = ${Acp.toFixed(0)} \\text{ mm}^2$$
+                $$p_{cp} = 2(b_w + h) = ${pcp.toFixed(0)} \\text{ mm}$$
+                Threshold Torsion: 
+                $$T_{th} = \\frac{\\phi 0.083 \\lambda \\sqrt{f'_c} A_{cp}^2}{p_{cp}} = ${(Tth/1000000).toFixed(2)} \\text{ kN-m}$$
+            `;
+            
+            const noteThresh = document.getElementById('note_threshold');
+            if(Tu < Tth) {
+                noteThresh.innerHTML = `<span style="color:var(--success)">$T_u < T_{th}$. Torsion may be neglected. (Minimum reinforcement may still be required by shear).</span>`;
+            } else {
+                noteThresh.innerHTML = `<span style="color:var(--warning)">$T_u > T_{th}$. Torsion design required.</span>`;
+            }
+
+            // Populate Section 2
+            document.getElementById('res_step2_core').innerHTML = `
+                Core Dimensions (based on stirrup centerline):
+                $$x_1 = ${x1.toFixed(1)} \\text{ mm}, \\quad y_1 = ${y1.toFixed(1)} \\text{ mm}$$
+                $$A_{oh} = x_1 y_1 = ${Aoh.toFixed(0)} \\text{ mm}^2, \\quad p_h = 2(x_1+y_1) = ${ph.toFixed(0)} \\text{ mm}$$
+            `;
+            document.getElementById('res_step2_vc').innerHTML = `
+                Shear Strength of Concrete:
+                $$V_c = 0.17 \\lambda \\sqrt{f'_c} b_w d = ${(Vc/1000).toFixed(1)} \\text{ kN}$$
+            `;
+            document.getElementById('res_step2_check').innerHTML = `
+                Check LHS (Combined Stress) $\\le$ RHS (Limit):
+                $$\\sqrt{(\\frac{V_u}{b_w d})^2 + (\\frac{T_u p_h}{1.7 A_{oh}^2})^2} = ${lhs_stress.toFixed(2)} \\text{ MPa}$$
+                $$\\phi (\\frac{V_c}{b_w d} + 0.66 \\sqrt{f'_c}) = ${max_stress.toFixed(2)} \\text{ MPa}$$
+            `;
+
+            const statusBanner = document.getElementById('statusBanner');
+            const noteSec = document.getElementById('note_section');
+            if(lhs_stress > max_stress) {
+                statusBanner.className = 'status-banner status-fail';
+                statusBanner.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Cross-section is too small. Increase dimensions or concrete strength.';
+                noteSec.innerHTML = "Result: <strong>FAIL</strong> (Crushing limit exceeded)";
+            } else {
+                statusBanner.className = 'status-banner status-pass';
+                statusBanner.innerHTML = '<i class="fa-solid fa-circle-check"></i> Cross-section size is adequate.';
+                noteSec.innerHTML = "Result: <strong>PASS</strong>";
+            }
+
+            // Populate Section 3
+            document.getElementById('res_step3').innerHTML = `
+                Torsion ($A_t/s$ for one leg):
+                $$T_n = T_u / \\phi = ${(Tu/phi/1000000).toFixed(2)} \\text{ kN-m}$$
+                $$\\frac{A_t}{s} = \\frac{T_n}{2 A_o f_{yt} \\cot 45^\\circ} = ${Ats_req.toFixed(4)} \\text{ mm}^2/\\text{mm}$$
+                (Using $A_o = 0.85 A_{oh}$)
+                <br><br>
+                Shear ($A_v/s$ for two legs):
+                $$V_s = \\frac{V_u - \\phi V_c}{\\phi} = ${(Math.max(0, (Vu - phi*Vc)/phi)/1000).toFixed(1)} \\text{ kN}$$
+                $$\\frac{A_v}{s} = \\frac{V_s}{f_{yt} d} = ${Avs_req.toFixed(4)} \\text{ mm}^2/\\text{mm}$$
+                <br><br>
+                Total Stirrup Requirement (2 legs):
+                $$\\frac{A_{v+t}}{s} = \\frac{2A_t}{s} + \\frac{A_v}{s} = ${total_Avt_s.toFixed(4)} \\text{ mm}^2/\\text{mm}$$
+                Using 2 legs of $${stirrupSize} \\text{ mm}$ ($A_{bar} = ${Ab_stirrup} \text{ mm}^2$):
+                $$s_{req} = \\frac{2 \\times A_{bar}}{Total(A/s)} = ${s_req.toFixed(0)} \\text{ mm}$$
+            `;
+
+            // Populate Section 4
+            document.getElementById('res_step4').innerHTML = `
+                1. $p_h / 8 = ${max_s_ph8.toFixed(0)} \\text{ mm}$ <br>
+                2. 300 mm<br>
+                3. Shear Spacing Limit ($d/2$ or $d/4$): ${max_s_shear.toFixed(0)} \\text{ mm}$
+            `;
+            document.getElementById('res_FinalSpacing').innerText = final_s;
+
+            // Populate Section 5
+            document.getElementById('res_step5').innerHTML = `
+                $$A_l = \\frac{A_t}{s} p_h (\\frac{f_{yt}}{f_y}) \\cot^2 \\theta = ${Al_eq.toFixed(0)} \\text{ mm}^2$$
+                Min $A_l$ (Eq 11-24): ${Al_min_val.toFixed(0)} \\text{ mm}^2$
+                <br><br>
+                <strong>Governing $A_l$ required: ${Al_final.toFixed(0)} \\text{ mm}^2$</strong>
+                <br><br>
+                Bar Distribution:<br>
+                Selected Bar: $${longSize} \\text{ mm}$ ($A_{bar} = ${Ab_long} \text{ mm}^2$)<br>
+                Total Bars Needed: ${num_bars} <br>
+                Provided Area: ${(num_bars * Ab_long).toFixed(0)} \\text{ mm}^2$
+            `;
+
+            document.getElementById('res_step5').innerHTML += `
+                <h4 style="margin-top:1.5rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Stirrups</td><td style="padding:5px;">ϕ${stirrupSize} mm @ ${final_s} mm c/c</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Longitudinal Bars</td><td style="padding:5px;">${num_bars} - ϕ${longSize} mm</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
+                    <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Steel $f_y$</td><td style="padding:5px;">${fy} MPa</td></tr>
+                </table>
+            `;
+
+            const noteFit = document.getElementById('note_fitment');
+            if(fits) {
+                noteFit.innerHTML = `<span style="color:var(--success)">Bars fit within the cross-section with average gap ${avg_gap.toFixed(0)} mm.</span>`;
+            } else {
+                noteFit.innerHTML = `<span style="color:var(--danger)">Congestion Alert! Bars may not fit. Avg gap ${avg_gap.toFixed(0)} mm < Required ${min_gap} mm. Try larger bars or larger section.</span>`;
+            }
+
+            // Trigger MathJax typeset
+            MathJax.typesetPromise();
+
+            // Draw
+            drawBeam(bw, h, cover, x1, y1, db_stirrup, num_bars, db_long);
+            drawElevation(bw, h, cover, final_s, num_bars);
+        }
+
+        function drawBeam(b, h, cover, x1, y1, stirrupDia, numLong, longDia) {
+            const canvas = document.getElementById('beamCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size (scaled down)
+            const scale = Math.min(300/b, 300/h);
+            canvas.width = b * scale + 100;
+            canvas.height = h * scale + 100;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const startX = 50;
+            const startY = 50;
+
+            // Draw Concrete
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, b*scale, h*scale);
+            ctx.strokeRect(startX, startY, b*scale, h*scale);
+
+            // Draw Stirrup
+            // x1, y1 are centerline dimensions. 
+            // Draw rect based on cover + stirrupDia/2
+            const stirrupX = startX + (cover + stirrupDia/2)*scale;
+            const stirrupY = startY + (cover + stirrupDia/2)*scale;
+            const stirrupW = x1 * scale;
+            const stirrupH = y1 * scale;
+
+            ctx.strokeStyle = '#ef4444'; // Red for stirrup
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 3]);
+            ctx.strokeRect(stirrupX, stirrupY, stirrupW, stirrupH);
+            ctx.setLineDash([]);
+
+            // Draw Longitudinal Bars
+            // Simple distribution: 4 corners, then distribute remaining
+            ctx.fillStyle = '#3b82f6'; // Blue
+            ctx.strokeStyle = '#1e3a8a';
+            
+            const barRad = (longDia/2) * scale;
+            
+            // Coordinates relative to stirrup corner (inside hooks)
+            // Ideally bars are inside the stirrup.
+            // Corner coords:
+            const left = stirrupX + (stirrupDia/2)*scale + barRad; 
+            const right = stirrupX + stirrupW - (stirrupDia/2)*scale - barRad;
+            const top = stirrupY + (stirrupDia/2)*scale + barRad;
+            const bottom = stirrupY + stirrupH - (stirrupDia/2)*scale - barRad;
+
+            const corners = [
+                {x: left, y: top}, // TL
+                {x: right, y: top}, // TR
+                {x: right, y: bottom}, // BR
+                {x: left, y: bottom} // BL
+            ];
+
+            // Draw corners
+            corners.forEach(p => drawCircle(ctx, p.x, p.y, barRad));
+
+            // Distribute remaining bars
+            let remaining = numLong - 4;
+            // Distribute evenly on top/bottom/sides?
+            // Simple logic: Put remaining on Top/Bottom faces first, then sides if lots.
+            // ACI usually requires symmetric for torsion, or perimeter distribution.
+            // We will distribute perimeter-wise roughly.
+            
+            // Calculate perimeter length for bar placement
+            const periW = right - left;
+            const periH = bottom - top;
+            const totalPeri = 2 * (periW + periH);
+
+            if(remaining > 0) {
+                // Determine how many bars per side
+                // This is a visual approximation
+                const barsPerSide = Math.ceil(remaining / 4); 
+                // Top/Bottom
+                for(let i=1; i<=Math.ceil(remaining/2); i++) {
+                    // This logic is simplified for visualization. 
+                    // Real layout is complex. We'll just draw dots along the perimeter.
+                }
+                
+                // Helper to interpolate points
+                const drawSideBars = (p1, p2, count) => {
+                    const dx = (p2.x - p1.x) / (count + 1);
+                    const dy = (p2.y - p1.y) / (count + 1);
+                    for(let i=1; i<=count; i++) {
+                        if(remaining <= 0) break;
+                        drawCircle(ctx, p1.x + dx*i, p1.y + dy*i, barRad);
+                        remaining--;
+                    }
+                };
+
+                // Draw evenly around
+                const sideCount = Math.ceil(remaining/4);
+                const horizCount = Math.ceil((remaining - 2*sideCount)/2); 
+                
+                // Top
+                drawSideBars(corners[0], corners[1], horizCount > 0 ? horizCount : 0);
+                // Bottom
+                drawSideBars(corners[3], corners[2], horizCount > 0 ? horizCount : 0);
+                // Left
+                drawSideBars(corners[0], corners[3], sideCount);
+                // Right
+                drawSideBars(corners[1], corners[2], sideCount);
+            }
+
+            // Labels
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(`${b} mm`, startX + b*scale/2 - 20, startY - 10);
+            ctx.fillText(`${h} mm`, startX - 40, startY + h*scale/2);
+        }
+
+        function drawElevation(bw, h, cover, spacing, numLong) {
+            const canvas = document.getElementById('elevationCanvas');
+            const ctx = canvas.getContext('2d');
+            const cw = canvas.width = canvas.offsetWidth;
+            const ch = canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0, 0, cw, ch);
+
+            const padding = 40;
+            const drawL = cw - 2*padding;
+            const drawH = h * (drawL / 1200);
+            const startX = padding;
+            const startY = (ch - drawH) / 2;
+
+            // Concrete
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, drawL, drawH);
+            ctx.strokeRect(startX, startY, drawL, drawH);
+
+            // Longitudinal Bars (Perimeter)
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            const bY_top = startY + (cover * (drawH/h));
+            const bY_bot = startY + drawH - (cover * (drawH/h));
+            
+            ctx.beginPath();
+            ctx.moveTo(startX + 5, bY_top); ctx.lineTo(startX + drawL - 5, bY_top);
+            ctx.moveTo(startX + 5, bY_bot); ctx.lineTo(startX + drawL - 5, bY_bot);
+            ctx.stroke();
+
+            // Stirrups (Closed for torsion)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            const s_px = spacing * (drawL / 1000);
+            let curX = startX + 20;
+            while (curX < startX + drawL - 10) {
+                ctx.beginPath();
+                ctx.moveTo(curX, startY + 2);
+                ctx.lineTo(curX, startY + drawH - 2);
+                ctx.stroke();
+                curX += Math.max(10, s_px);
+            }
+            
+            ctx.fillStyle = '#64748b'; ctx.font = '11px Inter'; ctx.textAlign = 'center';
+            ctx.fillText(`Elevation (Stirrups @ ${spacing}mm)`, cw/2, startY - 10);
+        }
+
+        function drawCircle(ctx, x, y, r) {
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>

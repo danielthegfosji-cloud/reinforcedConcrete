@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Design Suite | Continuous Beams</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- MathJax -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --sidebar-bg: #1e293b;
+            --sidebar-text: #e2e8f0;
+            --accent-color: #3b82f6;
+            --bg-color: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-dark: #0f172a;
+            --border-color: #cbd5e1;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- INPUT SIDEBAR --- */
+        .input-panel {
+            width: 350px;
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow-y: auto;
+            border-right: 1px solid #334155;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .panel-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #334155;
+            background-color: #0f172a;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            transition: color 0.2s;
+        }
+        .back-btn:hover { color: white; }
+
+        .panel-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .input-group {
+            padding: 1.5rem;
+            border-bottom: 1px solid #334155;
+        }
+
+        .group-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #94a3b8;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .input-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .input-row label {
+            font-size: 0.9rem;
+            color: #e2e8f0;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 10px;
+        }
+
+        .input-row input, .input-row select {
+            width: 120px;
+            padding: 0.4rem 0.5rem;
+            background-color: #334155;
+            border: 1px solid #475569;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+        .input-row input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .calc-btn {
+            margin: 1.5rem;
+            padding: 0.75rem;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .calc-btn:hover { background-color: #2563eb; }
+
+        /* --- MAIN CONTENT --- */
+        .content-area {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* Visualization Box */
+        .vis-container {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .vis-title {
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #beamSvg {
+            width: 100%;
+            height: 180px;
+            background-color: #f8fafc;
+            border-radius: 4px;
+        }
+
+        /* Results Section */
+        .results-container {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-box {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            display: none;
+        }
+        .status-ok { background-color: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .status-warn { background-color: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+        .status-fail { background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+
+        .result-section-header {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.25rem;
+            display: inline-block;
+        }
+
+        .verbose-text {
+            line-height: 1.7;
+            color: #334155;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 6px;
+            margin: 0.5rem 0;
+            border-left: 3px solid #cbd5e1;
+            overflow-x: auto;
+        }
+
+        /* Data Table */
+        .reinforcement-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .reinforcement-table th, .reinforcement-table td {
+            border: 1px solid #cbd5e1;
+            padding: 0.75rem;
+            text-align: center;
+        }
+
+        .reinforcement-table th {
+            background-color: #f1f5f9;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+
+        .reinforcement-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            body { flex-direction: column; overflow-y: auto; }
+            .input-panel { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #334155; }
+            .content-area { overflow-y: visible; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- INPUT SIDEBAR -->
+    <aside class="input-panel">
+        <div class="panel-header">
+            <a href="index.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i> &nbsp; Back to Hub</a>
+            <div class="panel-title">Continuous Beams</div>
+            <small style="color: #94a3b8;">ACI 318-11 Coefficient Method</small>
+        </div>
+
+        <form id="designForm">
+            <!-- Group: Materials -->
+            <div class="input-group">
+                <div class="group-label">Materials (SI)</div>
+                <div class="input-row">
+                    <label>Concrete ($f'_c$)</label>
+                    <input type="number" id="fc" value="28" min="10" step="1">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">MPa</span>
+                </div>
+                <div class="input-row">
+                    <label>Steel Yield ($f_y$)</label>
+                    <input type="number" id="fy" value="420" min="200" step="10">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">MPa</span>
+                </div>
+            </div>
+
+            <!-- Group: Geometry -->
+            <div class="input-group">
+                <div class="group-label">Geometry</div>
+                <div class="input-row">
+                    <label>Clear Span ($\ell_n$)</label>
+                    <input type="number" id="span" value="6000" min="1000" step="100">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">mm</span>
+                </div>
+                <div class="input-row">
+                    <label>Beam Width ($b_w$)</label>
+                    <input type="number" id="bw" value="300" min="150" step="10">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">mm</span>
+                </div>
+                <div class="input-row">
+                    <label>Total Depth ($h$)</label>
+                    <input type="number" id="h" value="500" min="200" step="10">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">mm</span>
+                </div>
+                <div class="input-row">
+                    <label>Column Width ($c_1$)</label>
+                    <input type="number" id="c1" value="400" min="200" step="10">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">mm</span>
+                </div>
+            </div>
+
+            <!-- Group: Loads -->
+            <div class="input-group">
+                <div class="group-label">Loads (Unfactored)</div>
+                <div class="input-row">
+                    <label>Dead Load ($w_D$)</label>
+                    <input type="number" id="wd" value="20" min="0" step="0.1">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">kN/m</span>
+                </div>
+                <div class="input-row">
+                    <label>Live Load ($w_L$)</label>
+                    <input type="number" id="wl" value="15" min="0" step="0.1">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">kN/m</span>
+                </div>
+                <div class="input-row" style="font-size: 0.8rem; color: #94a3b8; justify-content: flex-end;">
+                    *Excludes self-weight
+                </div>
+            </div>
+
+            <!-- Group: Detailing -->
+            <div class="input-group">
+                <div class="group-label">Detailing</div>
+                <div class="input-row">
+                    <label>Main Bar Size</label>
+                    <select id="barSize">
+                        <option value="16">16 mm</option>
+                        <option value="20">20 mm</option>
+                        <option value="25" selected>25 mm</option>
+                        <option value="28">28 mm</option>
+                        <option value="32">32 mm</option>
+                    </select>
+                </div>
+                <div class="input-row">
+                    <label>Stirrup Size</label>
+                    <select id="stirrupSize">
+                        <option value="10" selected>10 mm</option>
+                        <option value="12">12 mm</option>
+                    </select>
+                </div>
+                <div class="input-row">
+                    <label>Conc. Cover</label>
+                    <input type="number" id="cover" value="40" min="20" step="5">
+                    <span style="margin-left: 5px; color: #64748b; width: 30px;">mm</span>
+                </div>
+            </div>
+
+            <button type="button" class="calc-btn" onclick="calculateFrame()">Calculate Design</button>
+        </form>
+    </aside>
+
+    <!-- CONTENT AREA -->
+    <main class="content-area">
+        
+        <!-- Visualization -->
+        <div class="vis-container">
+            <div class="vis-title">
+                <span><i class="fa-solid fa-eye"></i> Structural Schematic & Zone Details</span>
+                <span style="font-size: 0.8rem; color: #64748b;">Not to Scale</span>
+            </div>
+            <svg id="beamSvg" viewBox="0 0 800 200" style="margin-bottom: 1.5rem;">
+                <!-- Content generated by JS -->
+            </svg>
+            <div id="sectionsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                <!-- Section canvases generated by JS -->
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="results-container" id="resultsArea" style="display:none;">
+            <div id="statusBox" class="status-box"></div>
+
+            <div class="result-section-header">1. Load Analysis</div>
+            <div class="verbose-text">
+                The beam self-weight is calculated based on a concrete density of $24 \text{ kN/m}^3$. The factored design load $w_u$ is determined using the combination $1.2D + 1.6L$.
+            </div>
+            <div id="loadMath" class="math-block"></div>
+
+            <div class="result-section-header">2. ACI Moment Coefficients (Chapter 14)</div>
+            <div class="verbose-text">
+                Moments are calculated based on ACI 318 Coefficients for a continuous beam with more than two spans.
+                <ul style="margin-left: 20px; margin-top: 5px;">
+                    <li><strong>Exterior Neg:</strong> $1/16$ (Column support)</li>
+                    <li><strong>End Span Pos:</strong> $1/14$ (Integral support)</li>
+                    <li><strong>First Interior Neg:</strong> $1/10$ (More than 2 spans)</li>
+                    <li><strong>Interior Pos:</strong> $1/16$</li>
+                </ul>
+            </div>
+            <div id="momentMath" class="math-block"></div>
+
+            <div class="result-section-header">3. Reinforcement Calculation</div>
+            <div class="verbose-text">
+                Steel area $A_s$ is calculated using the strength design method ($M_u = \phi A_s f_y (d - a/2)$). 
+                The number of bars is checked against the beam width to ensure proper spacing and concrete flow.
+                <br><br>
+                <strong>Sanity Check:</strong> Minimum reinforcement $\rho_{min}$ and maximum reinforcement $\rho_{max}$ (for tension control) are verified.
+            </div>
+            
+            <table class="reinforcement-table">
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Coeff.</th>
+                        <th>$M_u$ (kN&middot;m)</th>
+                        <th>$A_{s,req}$ (mm²)</th>
+                        <th>Bars Selected</th>
+                        <th>$A_{s,prov}$ (mm²)</th>
+                        <th>Width Check</th>
+                    </tr>
+                </thead>
+                <tbody id="reinfTableBody">
+                    <!-- Rows generated by JS -->
+                </tbody>
+            </table>
+
+            <div class="result-section-header">4. Shear Check</div>
+            <div class="verbose-text">
+                The maximum shear occurs at the face of the first interior support.
+            </div>
+            <div id="shearMath" class="math-block"></div>
+
+        </div>
+
+        <div style="height: 50px;"></div>
+    </main>
+
+    <script>
+        // Draw the schematic with optional reinforcement
+        function drawSchematic(results = null, ln = null, c1 = null, h = null) {
+            const svg = document.getElementById('beamSvg');
+            // Colors
+            const beamColor = "#94a3b8";
+            const supportColor = "#1e293b";
+            const textColor = "#475569";
+            const rebarColor = "#ef4444";
+            
+            let html = `
+                <!-- Beam -->
+                <rect x="50" y="80" width="700" height="20" fill="${beamColor}" rx="2" />
+                
+                <!-- Supports -->
+                <rect x="40" y="100" width="20" height="40" fill="${supportColor}" />
+                <rect x="270" y="100" width="20" height="40" fill="${supportColor}" />
+                <rect x="500" y="100" width="20" height="40" fill="${supportColor}" />
+                <rect x="730" y="100" width="20" height="40" fill="${supportColor}" />
+
+                <!-- Dimensions -->
+                <!-- Span 1 Dimension -->
+                <line x1="60" y1="160" x2="270" y2="160" stroke="${textColor}" stroke-width="1" />
+                <line x1="60" y1="155" x2="60" y2="165" stroke="${textColor}" stroke-width="1" />
+                <line x1="270" y1="155" x2="270" y2="165" stroke="${textColor}" stroke-width="1" />
+                <text x="165" y="175" font-family="Inter" font-size="10" fill="${textColor}" text-anchor="middle">${ln ? 'ℓn=' + ln : 'ℓn'}</text>
+
+                <!-- Span 2 Dimension -->
+                <line x1="290" y1="160" x2="500" y2="160" stroke="${textColor}" stroke-width="1" />
+                <line x1="290" y1="155" x2="290" y2="165" stroke="${textColor}" stroke-width="1" />
+                <line x1="500" y1="155" x2="500" y2="165" stroke="${textColor}" stroke-width="1" />
+                <text x="395" y="175" font-family="Inter" font-size="10" fill="${textColor}" text-anchor="middle">${ln ? 'ℓn=' + ln : 'ℓn'}</text>
+
+                <!-- Span 3 Dimension -->
+                <line x1="520" y1="160" x2="730" y2="160" stroke="${textColor}" stroke-width="1" />
+                <line x1="520" y1="155" x2="520" y2="165" stroke="${textColor}" stroke-width="1" />
+                <line x1="730" y1="155" x2="730" y2="165" stroke="${textColor}" stroke-width="1" />
+                <text x="625" y="175" font-family="Inter" font-size="10" fill="${textColor}" text-anchor="middle">${ln ? 'ℓn=' + ln : 'ℓn'}</text>
+
+                <!-- Column 2 Dimension -->
+                <line x1="270" y1="145" x2="290" y2="145" stroke="${textColor}" stroke-width="1" />
+                <line x1="270" y1="142" x2="270" y2="148" stroke="${textColor}" stroke-width="1" />
+                <line x1="290" y1="142" x2="290" y2="148" stroke="${textColor}" stroke-width="1" />
+                <text x="280" y="138" font-family="Inter" font-size="8" fill="${textColor}" text-anchor="middle">${c1 ? 'c1=' + c1 : 'c1'}</text>
+
+                <!-- Column 3 Dimension -->
+                <line x1="500" y1="145" x2="520" y2="145" stroke="${textColor}" stroke-width="1" />
+                <line x1="500" y1="142" x2="500" y2="148" stroke="${textColor}" stroke-width="1" />
+                <line x1="520" y1="142" x2="520" y2="148" stroke="${textColor}" stroke-width="1" />
+                <text x="510" y="138" font-family="Inter" font-size="8" fill="${textColor}" text-anchor="middle">${c1 ? 'c1=' + c1 : 'c1'}</text>
+
+                <!-- Beam Depth Dimension -->
+                <line x1="30" y1="80" x2="30" y2="100" stroke="${textColor}" stroke-width="1" />
+                <line x1="25" y1="80" x2="35" y2="80" stroke="${textColor}" stroke-width="1" />
+                <line x1="25" y1="100" x2="35" y2="100" stroke="${textColor}" stroke-width="1" />
+                <text x="20" y="93" font-family="Inter" font-size="10" fill="${textColor}" text-anchor="end">${h ? 'h=' + h : 'h'}</text>
+
+                <!-- Text Labels for Spans -->
+                <text x="165" y="60" font-family="Inter" font-size="12" fill="${textColor}" text-anchor="middle">End Span</text>
+                <text x="395" y="60" font-family="Inter" font-size="12" fill="${textColor}" text-anchor="middle">Interior Span</text>
+                <text x="625" y="60" font-family="Inter" font-size="12" fill="${textColor}" text-anchor="middle">End Span</text>
+            `;
+
+            if (results && results.length > 0) {
+                // Draw rebars based on results
+                // results[0]: Ext Neg (Support 1)
+                html += `<line x1="50" y1="85" x2="120" y2="85" stroke="${rebarColor}" stroke-width="3" />`;
+                html += `<text x="85" y="78" font-family="Inter" font-size="10" fill="${rebarColor}" text-anchor="middle">${results[0].bars}</text>`;
+
+                // results[1]: End Span Pos (Span 1)
+                html += `<line x1="60" y1="95" x2="250" y2="95" stroke="${rebarColor}" stroke-width="3" />`;
+                html += `<text x="155" y="115" font-family="Inter" font-size="10" fill="${rebarColor}" text-anchor="middle">${results[1].bars}</text>`;
+
+                // results[2]: 1st Interior Neg (Support 2)
+                html += `<line x1="200" y1="85" x2="340" y2="85" stroke="${rebarColor}" stroke-width="3" />`;
+                html += `<text x="270" y="78" font-family="Inter" font-size="10" fill="${rebarColor}" text-anchor="middle">${results[2].bars}</text>`;
+
+                // results[3]: Interior Span Pos (Span 2)
+                html += `<line x1="290" y1="95" x2="480" y2="95" stroke="${rebarColor}" stroke-width="3" />`;
+                html += `<text x="385" y="115" font-family="Inter" font-size="10" fill="${rebarColor}" text-anchor="middle">${results[3].bars}</text>`;
+
+                // results[4]: Interior Neg (Support 3)
+                html += `<line x1="430" y1="85" x2="570" y2="85" stroke="${rebarColor}" stroke-width="3" />`;
+                html += `<text x="500" y="78" font-family="Inter" font-size="10" fill="${rebarColor}" text-anchor="middle">${results[4].bars}</text>`;
+
+                // Symmetric parts for 3-span beam visualization
+                // Span 3 (End Span) - symmetric to results[1]
+                html += `<line x1="520" y1="95" x2="710" y2="95" stroke="${rebarColor}" stroke-width="3" />`;
+                html += `<text x="615" y="115" font-family="Inter" font-size="10" fill="${rebarColor}" text-anchor="middle">${results[1].bars}</text>`;
+
+                // Support 4 (Ext Neg) - symmetric to results[0]
+                html += `<line x1="650" y1="85" x2="740" y2="85" stroke="${rebarColor}" stroke-width="3" />`;
+                html += `<text x="695" y="78" font-family="Inter" font-size="10" fill="${rebarColor}" text-anchor="middle">${results[0].bars}</text>`;
+            }
+
+            svg.innerHTML = html;
+        }
+
+        function drawSection(canvas, bw, h, cover, stirrupSize, barSize, numBars, isNegative, title) {
+            const ctx = canvas.getContext('2d');
+            const cw = canvas.width;
+            const ch = canvas.height;
+            ctx.clearRect(0, 0, cw, ch);
+
+            const padding = 20;
+            const scale = Math.min((cw - 2 * padding) / bw, (ch - 2 * padding) / h);
+            const drawW = bw * scale;
+            const drawH = h * scale;
+            const startX = (cw - drawW) / 2;
+            const startY = (ch - drawH) / 2;
+
+            // Concrete
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.fillRect(startX, startY, drawW, drawH);
+            ctx.strokeRect(startX, startY, drawW, drawH);
+
+            // Stirrup
+            const s_off = cover * scale;
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(startX + s_off, startY + s_off, drawW - 2 * s_off, drawH - 2 * s_off);
+
+            // Bars
+            ctx.fillStyle = '#1e293b';
+            const barRad = (barSize * scale) / 2;
+            const barY = isNegative ? (startY + s_off + (stirrupSize * scale) + barRad) : (startY + drawH - s_off - (stirrupSize * scale) - barRad);
+            
+            const innerStart = startX + s_off + (stirrupSize * scale) + barRad;
+            const innerEnd = startX + drawW - s_off - (stirrupSize * scale) - barRad;
+            const innerWidth = innerEnd - innerStart;
+
+            if (numBars > 0) {
+                const spacing = numBars > 1 ? innerWidth / (numBars - 1) : 0;
+                for (let i = 0; i < numBars; i++) {
+                    let bx = (numBars === 1) ? startX + drawW / 2 : innerStart + (i * spacing);
+                    ctx.beginPath();
+                    ctx.arc(bx, barY, Math.max(2, barRad), 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+
+            // Hanger bars (2 bars on opposite side)
+            const hangerY = isNegative ? (startY + drawH - s_off - (stirrupSize * scale) - barRad) : (startY + s_off + (stirrupSize * scale) + barRad);
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.arc(innerStart, hangerY, Math.max(1.5, barRad * 0.6), 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(innerEnd, hangerY, Math.max(1.5, barRad * 0.6), 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Dimensions
+            ctx.fillStyle = '#64748b';
+            ctx.font = '8px Inter';
+            ctx.fillText(`bw=${bw}mm`, cw/2, startY - 5);
+
+            // Title
+            ctx.fillStyle = '#64748b';
+            ctx.font = 'bold 10px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(title, cw/2, ch - 5);
+        }
+
+        window.onload = () => {
+            drawSchematic();
+            const container = document.getElementById('sectionsContainer');
+            container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #64748b; font-size: 0.9rem; padding: 2rem;">Calculate to see section details for each zone.</p>';
+        };
+
+        function calculateFrame() {
+            // 1. Get Inputs
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const ln = parseFloat(document.getElementById('span').value);
+            const bw = parseFloat(document.getElementById('bw').value);
+            const h = parseFloat(document.getElementById('h').value);
+            const wd_input = parseFloat(document.getElementById('wd').value); // kN/m
+            const wl_input = parseFloat(document.getElementById('wl').value); // kN/m
+            const barSize = parseFloat(document.getElementById('barSize').value);
+            const stirrupSize = parseFloat(document.getElementById('stirrupSize').value);
+            const cover = parseFloat(document.getElementById('cover').value);
+
+            // 2. Load Calculations
+            const densityConc = 24; // kN/m^3
+            const selfWeight = (bw * h / 1000000) * densityConc; // kN/m
+            const wd_total = wd_input + selfWeight;
+            const wu = 1.2 * wd_total + 1.6 * wl_input;
+
+            // 3. Constants
+            const phi_b = 0.9;
+            const phi_v = 0.75;
+            // Effective depth (approximate for single layer)
+            const d = h - cover - stirrupSize - (barSize / 2);
+            
+            // Bar Area
+            const A_bar = (Math.PI * Math.pow(barSize, 2)) / 4;
+
+            // 4. Critical Moments (ACI Coeffs)
+            // Locations: [Name, Coeff Denominator]
+            // Note: Coeffs are 1/X. 
+            const locations = [
+                { name: "Exterior Support", coeff: 1/16, type: "Neg" },
+                { name: "End Span (Pos)", coeff: 1/14, type: "Pos" },
+                { name: "1st Interior Support", coeff: 1/10, type: "Neg" },
+                { name: "Interior Span (Pos)", coeff: 1/16, type: "Pos" },
+                { name: "Interior Support", coeff: 1/11, type: "Neg" }
+            ];
+
+            let results = [];
+            let maxBarCount = 0;
+            let widthIssue = false;
+            let maxAsVal = -1;
+            let maxAsIdx = 0;
+
+            // 5. Loop through locations to calculate As
+            locations.forEach((loc, idx) => {
+                const Mu_kNm = (loc.coeff * wu * Math.pow(ln / 1000, 2)); // kN-m
+                const Mu_Nmm = Mu_kNm * 1e6;
+
+                // Required As (Iterative or Quadratic)
+                // Using approximation first: As = Mu / (phi * fy * 0.9d)
+                // Then refinement: a = As*fy / (0.85*fc*b)
+                
+                // Quadratic solution for: Mu = phi * As * fy * (d - 0.5 * (As*fy)/(0.85*fc*b))
+                // Rearranged: (phi*fy^2 / (1.7*fc*b)) * As^2 - (phi*fy*d) * As + Mu = 0
+                
+                const A_quad = (phi_b * Math.pow(fy, 2)) / (1.7 * fc * bw);
+                const B_quad = -1 * (phi_b * fy * d);
+                const C_quad = Mu_Nmm;
+                
+                // Quadratic formula
+                const discriminant = B_quad*B_quad - 4*A_quad*C_quad;
+                
+                let As_req = 0;
+                if(discriminant < 0) {
+                    As_req = 999999; // Impossible section (too small)
+                } else {
+                    As_req = (-B_quad - Math.sqrt(discriminant)) / (2 * A_quad);
+                }
+
+                // Check Minimum Steel
+                // As,min = max( (0.25*sqrt(fc)/fy)*bw*d, (1.4/fy)*bw*d )
+                const rho_min1 = (0.25 * Math.sqrt(fc)) / fy;
+                const rho_min2 = 1.4 / fy;
+                const As_min = Math.max(rho_min1, rho_min2) * bw * d;
+
+                const As_final = Math.max(As_req, As_min);
+                if (As_final > maxAsVal) {
+                    maxAsVal = As_final;
+                    maxAsIdx = idx;
+                }
+
+                // Number of bars
+                const numBars = Math.ceil(As_final / A_bar);
+                const As_prov = numBars * A_bar;
+
+                // Width Check
+                // Width = 2*cover + 2*stirrup + num*bar + (num-1)*spacing
+                // spacing = max(25mm, barSize)
+                const minSpacing = Math.max(25, barSize);
+                const widthReq = (2 * cover) + (2 * stirrupSize) + (numBars * barSize) + ((numBars - 1) * minSpacing);
+                
+                const fits = widthReq <= bw;
+                if(!fits) widthIssue = true;
+
+                results.push({
+                    loc: loc.name,
+                    coeff: `1/${Math.round(1/loc.coeff)}`,
+                    mu: Mu_kNm.toFixed(1),
+                    as_req: As_final.toFixed(0),
+                    bars: `${numBars} - ⌀${barSize}`,
+                    numBars: numBars,
+                    type: loc.type,
+                    as_prov: As_prov.toFixed(0),
+                    widthCheck: fits ? "OK" : `<span style="color:red">Fail (${Math.ceil(widthReq)}mm)</span>`
+                });
+            });
+
+            // 6. Shear Calculations
+            // Max shear at face of first interior support = 1.15 * wu * ln / 2
+            const Vu_max = 1.15 * wu * (ln / 1000) / 2; // kN
+            
+            // Concrete Capacity Vc = 0.17 * sqrt(fc) * bw * d
+            const Vc = 0.17 * Math.sqrt(fc) * bw * d / 1000; // kN
+            const phiVc = phi_v * Vc;
+            
+            const shearStatus = Vu_max < phiVc ? 
+                `Concrete capacity sufficient ($\\phi V_c = ${phiVc.toFixed(1)} > V_u$) - Min stirrups required.` : 
+                `Stirrups required ($\\phi V_c = ${phiVc.toFixed(1)} < V_u$).`;
+
+            // 7. Render Outputs
+            document.getElementById('resultsArea').style.display = 'block';
+            
+            // Status Box
+            const statusBox = document.getElementById('statusBox');
+            if(widthIssue) {
+                statusBox.className = 'status-box status-fail';
+                statusBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Error: Reinforcement bars do not fit within the beam width. Increase width or bar size.';
+                statusBox.style.display = 'block';
+            } else {
+                statusBox.className = 'status-box status-ok';
+                statusBox.innerHTML = '<i class="fa-solid fa-check-circle"></i> Design Feasible: Bars fit within section.';
+                statusBox.style.display = 'block';
+            }
+
+            // Math Blocks
+            const loadHtml = `
+                $$ w_{self} = ${bw} \\times ${h} \\times 24 \\times 10^{-6} = ${selfWeight.toFixed(2)} \\text{ kN/m} $$
+                $$ w_{dead} = ${wd_input} + ${selfWeight.toFixed(2)} = ${wd_total.toFixed(2)} \\text{ kN/m} $$
+                $$ w_u = 1.2(${wd_total.toFixed(2)}) + 1.6(${wl_input}) = \\mathbf{${wu.toFixed(2)} \\text{ kN/m}} $$
+            `;
+            document.getElementById('loadMath').innerHTML = loadHtml;
+
+            document.getElementById('momentMath').innerHTML = `
+                Example Calculation (End Span Positive):
+                $$ M_u = \\frac{1}{14} w_u \\ell_n^2 = \\frac{1}{14} (${wu.toFixed(2)}) (${(ln/1000).toFixed(2)})^2 = \\mathbf{${results[1].mu} \\text{ kN}\\cdot\\text{m}} $$
+            `;
+
+            // Table
+            let tableHtml = '';
+            results.forEach(row => {
+                tableHtml += `
+                    <tr>
+                        <td style="text-align:left;">${row.loc}</td>
+                        <td>${row.coeff}</td>
+                        <td>${row.mu}</td>
+                        <td>${row.as_req}</td>
+                        <td style="font-weight:bold; color:var(--accent-color);">${row.bars}</td>
+                        <td>${row.as_prov}</td>
+                        <td>${row.widthCheck}</td>
+                    </tr>
+                `;
+            });
+            document.getElementById('reinfTableBody').innerHTML = tableHtml;
+
+            // Shear
+            document.getElementById('shearMath').innerHTML = `
+                $$ V_{u,max} = 1.15 \\frac{w_u \\ell_n}{2} = 1.15 \\frac{${wu.toFixed(2)} \\times ${(ln/1000).toFixed(2)}}{2} = \\mathbf{${Vu_max.toFixed(1)} \\text{ kN}} $$
+                $$ \\phi V_c = 0.75 \\times 0.17 \\sqrt{${fc}} \\times ${bw} \\times ${d} \\times 10^{-3} = \\mathbf{${phiVc.toFixed(1)} \\text{ kN}} $$
+                Status: ${shearStatus}
+            `;
+
+            // Update Visualization
+            drawSchematic(results, ln, c1, h);
+            
+            const container = document.getElementById('sectionsContainer');
+            container.innerHTML = ''; // Clear placeholder
+            
+            results.forEach(res => {
+                const wrapper = document.createElement('div');
+                wrapper.style.textAlign = 'center';
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 150;
+                canvas.height = 150;
+                canvas.style.background = '#f8fafc';
+                canvas.style.border = '1px solid #cbd5e1';
+                canvas.style.borderRadius = '4px';
+                
+                wrapper.appendChild(canvas);
+                container.appendChild(wrapper);
+                
+                drawSection(canvas, bw, h, cover, stirrupSize, barSize, res.numBars, res.type === "Neg", res.loc);
+            });
+
+            // Render MathJax
+            if (window.MathJax && window.MathJax.typesetPromise) {
+                MathJax.typesetPromise();
+            }
+        }
+    </script>
+</body>
+</html>

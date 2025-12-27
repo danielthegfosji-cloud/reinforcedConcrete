@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coming Soon | RC Design Suite</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .coming-soon-card {
+            background: white;
+            border-radius: 12px;
+            padding: 4rem 2rem;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            margin-top: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .icon-box {
+            width: 80px;
+            height: 80px;
+            background-color: #eff6ff;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            color: var(--accent);
+            margin-bottom: 1rem;
+        }
+
+        .coming-soon-title {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .coming-soon-desc {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            line-height: 1.7;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            max-width: 400px;
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--accent);
+            width: 65%;
+            border-radius: 4px;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233b82f6' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+        <div class="input-panel">
+            <h2 class="panel-title">Module Status</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;">
+                This module is currently in the <strong>Development Phase</strong>. We are finalizing the ACI 318-11 calculation engine.
+            </p>
+            <div class="section-header">Estimated Release</div>
+            <p style="font-size: 0.9rem; font-weight: 600; color: var(--text-main);">Coming Soon</p>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>Module Under Development</h1>
+            <p>We are expanding the RC Design Suite to cover more complex structural elements.</p>
+        </div>
+
+        <div class="coming-soon-card">
+            <div class="icon-box">
+                <i class="fa-solid fa-person-digging"></i>
+            </div>
+            <h2 class="coming-soon-title">Coming Soon</h2>
+            <p class="coming-soon-desc">
+                This design module is currently being implemented according to <strong>ACI 318-11</strong> standards. Our team is working on the verification logic and visualization tools.
+            </p>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill"></div>
+            </div>
+            <p style="font-size: 0.875rem; color: var(--text-muted);">Implementation Progress: 65%</p>
+            
+            <a href="index.html" class="calc-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 10px; margin-top: 2rem;">
+                <i class="fa-solid fa-arrow-left"></i> Return to Dashboard
+            </a>
+        </div>
+    </main>
+
+</body>
+</html>

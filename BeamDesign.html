@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Beam Designer & Analyzer (SI)</title>
+    <!-- MathJax for LaTeX Rendering -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+
+        header {
+            background-color: var(--primary);
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        /* Tabs */
+        .tabs {
+            width: 100%;
+            display: flex;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: white;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .tab-btn.active {
+            background: var(--secondary);
+            color: white;
+        }
+
+        /* Panels */
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex: 1;
+            min-width: 300px;
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .visualization-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-row { display: flex; gap: 10px; }
+        .form-col { flex: 1; }
+        .section-header {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin: 1.5rem 0 0.75rem 0;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid var(--light);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; /* Fix padding issue */
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .col {
+            flex: 1;
+        }
+
+        button.action-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button.action-btn:hover {
+            background-color: #2980b9;
+        }
+
+        /* Results */
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--light);
+            border-radius: 4px;
+            border-left: 5px solid var(--secondary);
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+
+        .result-item.highlight {
+            font-weight: bold;
+            color: var(--dark);
+            border-top: 1px solid #ccc;
+            padding-top: 5px;
+            margin-top: 5px;
+        }
+
+        .warning {
+            color: var(--accent);
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        /* Canvas */
+        canvas {
+            border: 1px solid #ddd;
+            background-color: #fff;
+            margin-top: 10px;
+            max-width: 100%;
+        }
+
+        h3 { border-bottom: 2px solid var(--light); padding-bottom: 10px; }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>RC Beam Designer & Analyzer (SI Units)</h1>
+    <p>Doubly Reinforced | Shear | Deflection</p>
+</header>
+
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('design')">Design Mode</button>
+        <button class="tab-btn" onclick="switchTab('analysis')">Analysis Mode</button>
+    </div>
+</div>
+
+<div class="container">
+    
+    <!-- DESIGN PANEL -->
+    <div id="designPanel" class="panel active">
+        <div class="section-header">Material Properties</div>
+        <div class="form-row">
+            <div class="form-col">
+                <label>Concrete $f'_c$ (MPa)</label>
+                <input type="number" id="d_fc" value="25">
+            </div>
+            <div class="form-col">
+                <label>Steel $f_y$ (MPa)</label>
+                <input type="number" id="d_fy" value="420">
+            </div>
+        </div>
+
+        <div class="section-header">Geometry</div>
+        <div class="form-row">
+            <div class="form-col">
+                <label>Width $b$ (mm)</label>
+                <input type="number" id="d_b" value="300">
+            </div>
+            <div class="form-col">
+                <label>Height $h$ (mm)</label>
+                <input type="number" id="d_h" value="500">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-col">
+                <label>Cover (mm)</label>
+                <input type="number" id="d_cover" value="40">
+            </div>
+            <div class="form-col">
+                <label>Stirrup</label>
+                <select id="d_stirrup">
+                    <option value="8">8 mm</option>
+                    <option value="10" selected>10 mm</option>
+                    <option value="12">12 mm</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section-header">Loads & Preferences</div>
+        <div class="form-row">
+            <div class="form-col">
+                <label>$M_u$ (kN·m)</label>
+                <input type="number" id="d_Mu" value="350">
+            </div>
+            <div class="form-col">
+                <label>$V_u$ (kN)</label>
+                <input type="number" id="d_Vu" value="150">
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-col">
+                <label>$M_s$ (kN·m)</label>
+                <input type="number" id="d_Ms" value="200">
+            </div>
+            <div class="form-col">
+                <label>Span $L$ (m)</label>
+                <input type="number" id="d_L" value="6">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Preferred Bar Size</label>
+            <select id="d_barSize"></select>
+        </div>
+
+        <button class="action-btn" onclick="calculateDesign()">Auto-Design Beam</button>
+
+        <div id="d_results" class="results" style="display:none;"></div>
+    </div>
+
+    <!-- ANALYSIS PANEL -->
+    <div id="analysisPanel" class="panel">
+        <h3>Analysis Parameters</h3>
+        <div class="row">
+            <div class="col form-group">
+                <label>Concrete f'c (MPa)</label>
+                <input type="number" id="a_fc" value="30">
+            </div>
+            <div class="col form-group">
+                <label>Steel fy (MPa)</label>
+                <input type="number" id="a_fy" value="420">
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col form-group">
+                <label>Width b (mm)</label>
+                <input type="number" id="a_b" value="300">
+            </div>
+            <div class="col form-group">
+                <label>Height h (mm)</label>
+                <input type="number" id="a_h" value="600">
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col form-group">
+                <label>Concrete Cover (mm)</label>
+                <input type="number" id="a_cover" value="40">
+            </div>
+            <div class="col form-group">
+                <label>Span (m)</label>
+                <input type="number" id="a_L" value="7">
+            </div>
+        </div>
+
+        <hr>
+        <h4>Reinforcement Selection</h4>
+        
+        <div class="row">
+            <div class="col form-group">
+                <label>Bottom Bars (Tension)</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="number" id="a_botQty" value="4" style="width:40%">
+                    <select id="a_botSize" style="width:60%"></select>
+                </div>
+            </div>
+            <div class="col form-group">
+                <label>Top Bars (Compression)</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="number" id="a_topQty" value="2" style="width:40%">
+                    <select id="a_topSize" style="width:60%"></select>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Stirrups (Shear)</label>
+            <div style="display:flex; gap:5px;">
+                <select id="a_stirrupSize" style="width:50%"></select>
+                <input type="number" id="a_spacing" value="150" placeholder="Spacing (mm)" style="width:50%">
+            </div>
+        </div>
+
+        <button class="action-btn" onclick="calculateAnalysis()">Analyze Capacity</button>
+
+        <div id="a_results" class="results" style="display:none;"></div>
+    </div>
+
+    <!-- VISUALIZATION -->
+    <div class="visualization-panel">
+        <h3>Section Visualization</h3>
+        <canvas id="beamCanvas" width="300" height="400"></canvas>
+        <div id="viz_details" style="margin-top:10px; font-size: 0.9rem; color: #666;"></div>
+    </div>
+
+</div>
+
+<script>
+    // --- Constants & Data ---
+    const Es = 200000; // MPa
+    const rebarData = [
+        { name: "8 mm", diam: 8.0, area: 50 },
+        { name: "10 mm", diam: 11.3, area: 100 },
+        { name: "15 mm", diam: 16.0, area: 200 },
+        { name: "20 mm", diam: 19.5, area: 300 },
+        { name: "25 mm", diam: 25.2, area: 500 },
+        { name: "30 mm", diam: 29.9, area: 700 },
+        { name: "35 mm", diam: 35.7, area: 1000 },
+        { name: "45 mm", diam: 43.7, area: 1500 },
+        { name: "55 mm", diam: 56.4, area: 2500 }
+    ];
+
+    // Helper to populate selects
+    function populateRebarSelects() {
+        const selects = ['d_barSize', 'a_botSize', 'a_topSize', 'a_stirrupSize'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            el.innerHTML = '';
+            rebarData.forEach((bar, index) => {
+                let opt = document.createElement('option');
+                opt.value = index;
+                opt.text = `${bar.name} (${bar.area} mm²)`;
+                if(id === 'd_barSize' && index === 4) opt.selected = true; // Default 25M
+                if(id === 'a_botSize' && index === 4) opt.selected = true;
+                if(id === 'a_topSize' && index === 2) opt.selected = true; // Default 15M
+                if(id === 'a_stirrupSize' && index === 1) opt.selected = true; // Default 10M
+                el.appendChild(opt);
+            });
+        });
+    }
+
+    // --- Tab Switcher ---
+    function switchTab(mode) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        
+        if (mode === 'design') {
+            document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+            document.getElementById('designPanel').classList.add('active');
+        } else {
+            document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+            document.getElementById('analysisPanel').classList.add('active');
+        }
+    }
+
+    // --- Logic: Design Mode ---
+    function calculateDesign() {
+        // Inputs
+        const fc = parseFloat(document.getElementById('d_fc').value);
+        const fy = parseFloat(document.getElementById('d_fy').value);
+        const b = parseFloat(document.getElementById('d_b').value);
+        const h = parseFloat(document.getElementById('d_h').value);
+        const cover = parseFloat(document.getElementById('d_cover').value);
+        const Mu = parseFloat(document.getElementById('d_Mu').value) * 1e6; // to Nmm
+        const Vu = parseFloat(document.getElementById('d_Vu').value) * 1e3; // to N
+        const Ms = parseFloat(document.getElementById('d_Ms').value) * 1e6; // to Nmm
+        const L = parseFloat(document.getElementById('d_L').value) * 1000; // to mm
+        const preferredBarIdx = parseInt(document.getElementById('d_barSize').value);
+        const stirrupDiam = parseInt(document.getElementById('d_stirrup').value);
+
+        const bar = rebarData[preferredBarIdx];
+        const stirrupArea = (Math.PI * Math.pow(stirrupDiam, 2) / 4) * 2; // 2 legs
+
+        // 1. Geometry
+        const d = h - cover - stirrupDiam - (bar.diam / 2);
+        const d_prime = cover + stirrupDiam + (bar.diam / 2); // Assuming same bar size top/bottom for d' estimate
+
+        // 2. Constants
+        let beta1 = 0.85;
+        if (fc > 28) beta1 = Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7);
+        
+        // Max steel ratio for singly reinforced (tension controlled approx 0.005 strain limit usually, but simplified here to 0.75 rho_bal or standard max)
+        const rho_b = (0.85 * beta1 * fc / fy) * (600 / (600 + fy));
+        const rho_max = 0.75 * rho_b; // Standard limit
+        const As_max_single = rho_max * b * d;
+        
+        // Singly reinforced capacity
+        const a_max = (As_max_single * fy) / (0.85 * fc * b);
+        const Phi_Mn_max = 0.9 * As_max_single * fy * (d - a_max / 2);
+
+        let As_req = 0;
+        let As_prime_req = 0;
+        let designType = "Singly Reinforced";
+
+        // 3. Flexure Design
+        if (Mu <= Phi_Mn_max) {
+            // Singly Reinforced
+            const Rn = Mu / (0.9 * b * d * d);
+            const rho = (0.85 * fc / fy) * (1 - Math.sqrt(1 - (2 * Rn) / (0.85 * fc)));
+            As_req = rho * b * d;
+        } else {
+            // Doubly Reinforced
+            designType = "Doubly Reinforced";
+            const Mu1 = Phi_Mn_max;
+            const Mu2 = Mu - Mu1;
+            
+            // Compression Steel
+            // Check yield of compression steel
+            const c = As_max_single * fy / (0.85 * beta1 * fc * b); // Approx c from tension steel 1
+            const es_prime = 0.003 * (c - d_prime) / c;
+            const ey = fy / Es;
+            let fs_prime = Es * es_prime;
+            if (fs_prime > fy) fs_prime = fy;
+
+            const As_prime_calc = Mu2 / (0.9 * fs_prime * (d - d_prime));
+            As_prime_req = As_prime_calc;
+
+            // Total Tension Steel
+            const As2 = (As_prime_calc * fs_prime) / fy;
+            As_req = As_max_single + As2;
+        }
+
+        // Min Steel Check
+        const As_min = Math.max(0.25 * Math.sqrt(fc) / fy * b * d, 1.4 / fy * b * d);
+        if (As_req < As_min) As_req = As_min;
+
+        // Convert to Bars
+        const numBarsBot = Math.ceil(As_req / bar.area);
+        const actualAsBot = numBarsBot * bar.area;
+        
+        let numBarsTop = 2; // Min hanger bars
+        if (As_prime_req > 0) {
+            numBarsTop = Math.ceil(As_prime_req / bar.area);
+            if (numBarsTop < 2) numBarsTop = 2;
+        }
+        const actualAsTop = numBarsTop * bar.area;
+
+        // 4. Shear Design
+        const Vc = 0.17 * Math.sqrt(fc) * b * d; // Simplified ACI Metric
+        const PhiVc = 0.75 * Vc;
+        let spacing = 0;
+        let shearMsg = "Minimum Stirrups";
+
+        if (Vu <= 0.5 * PhiVc) {
+            shearMsg = "No Stirrups Theoretically Required (Provide Min)";
+            spacing = Math.min(d/2, 600);
+        } else if (Vu <= PhiVc) {
+             // Min reinforcement
+             const Av_min_s = Math.max(0.062 * Math.sqrt(fc) * b / fy, 0.35 * b / fy);
+             spacing = stirrupArea / Av_min_s; // Max spacing for min steel
+             spacing = Math.min(spacing, d/2, 600);
+        } else {
+            // Design Stirrups
+            const Vs = (Vu - PhiVc) / 0.75;
+            
+            // Check max shear
+            const Vs_max = 0.66 * Math.sqrt(fc) * b * d;
+            if (Vs > Vs_max) {
+                shearMsg = "SECTION TOO SMALL FOR SHEAR!";
+                spacing = 0;
+            } else {
+                spacing = (stirrupArea * fy * d) / Vs;
+                
+                // Max spacing checks
+                let maxS = Math.min(d/2, 600);
+                if (Vs > 0.33 * Math.sqrt(fc) * b * d) {
+                    maxS = Math.min(d/4, 300);
+                }
+                spacing = Math.min(spacing, maxS);
+                shearMsg = `Required Spacing: ${Math.floor(spacing)} mm`;
+            }
+        }
+        
+        // 5. Deflection (Service)
+        // I_gross
+        const Ig = (b * Math.pow(h, 3)) / 12;
+        // Modulus of Rupture
+        const fr = 0.62 * Math.sqrt(fc);
+        const Mcr = (fr * Ig) / (h/2);
+        const Ec = 4700 * Math.sqrt(fc);
+        const n = Es / Ec;
+
+        // Cracked Moment of Inertia
+        const B = b;
+        const nAs = n * actualAsBot;
+        // quadratic for kd: b(kd)^2/2 = nAs(d-kd) => (b/2)x^2 + nAs*x - nAs*d = 0
+        const kd = (Math.sqrt(nAs*nAs + 2*B*nAs*d) - nAs) / B;
+        const Icr = (B * Math.pow(kd, 3) / 3) + (n * actualAsBot * Math.pow(d - kd, 2));
+
+        // Effective I (Branson)
+        let Ie = Ig;
+        if (Ms > Mcr) {
+            const m_ratio = Math.pow(Mcr/Ms, 3);
+            Ie = m_ratio * Ig + (1 - m_ratio) * Icr;
+            if (Ie > Ig) Ie = Ig;
+        }
+
+        // Deflection estimate (Assume Simply Supported Uniform Load that creates Ms)
+        // Delta = 5 Ms L^2 / (48 E I) based on M = wL^2/8
+        const delta = (5 * Ms * Math.pow(L, 2)) / (48 * Ec * Ie);
+        const deltaRatio = (L / delta);
+
+        // 6. Spacing Check
+        const clearWidth = b - 2*cover - 2*stirrupDiam;
+        const minClearSpacing = Math.max(25, bar.diam);
+        const actualClearSpacing = (clearWidth - numBarsBot * bar.diam) / (numBarsBot - 1);
+        let spacingWarning = "";
+        if (numBarsBot > 1 && actualClearSpacing < minClearSpacing) {
+            spacingWarning = `<div class="warning">ACI 318 Spacing Alert: Clear distance (${actualClearSpacing.toFixed(1)}mm) < Min (${minClearSpacing}mm).</div>`;
+        }
+
+        // --- Render Results ---
+        const rDiv = document.getElementById('d_results');
+        rDiv.style.display = 'block';
+        rDiv.innerHTML = `
+            <h4>Design Results</h4>
+            <div class="result-item"><span>Design Type:</span> <strong>${designType}</strong></div>
+            <div class="result-item"><span>Required Tension Steel:</span> <span>$${As_req.toFixed(0)} \\text{ mm}^2$</span></div>
+            <div class="result-item highlight"><span>Use Bottom Bars:</span> <span>${numBarsBot} x $${bar.name.replace(' mm', ' \\text{ mm}')}$</span></div>
+            <div class="result-item"><span>Required Compression Steel:</span> <span>$${As_prime_req.toFixed(0)} \\text{ mm}^2$</span></div>
+            <div class="result-item highlight"><span>Use Top Bars:</span> <span>${numBarsTop} x $${bar.name.replace(' mm', ' \\text{ mm}')}$</span></div>
+            <hr>
+            <div class="result-item"><span>Shear capacity ($\\phi V_c$):</span> <span>${(PhiVc/1000).toFixed(1)} kN</span></div>
+            <div class="result-item"><span>Shear Status:</span> <span>${shearMsg}</span></div>
+            <div class="result-item highlight"><span>Stirrups:</span> <span>$${stirrupDiam} \\text{ mm} @ ${Math.floor(spacing)} \\text{ mm c/c}$</span></div>
+            <hr>
+            <div class="result-item"><span>Cracking Moment:</span> <span>${(Mcr/1e6).toFixed(1)} kN·m</span></div>
+            <div class="result-item"><span>Immediate Deflection:</span> <span>${delta.toFixed(1)} mm (L/${deltaRatio.toFixed(0)})</span></div>
+            ${spacingWarning}
+            <h4 style="margin-top:1rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Bottom Bars</td><td style="padding:5px;">${numBarsBot} x ${bar.name}</td></tr>
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Top Bars</td><td style="padding:5px;">${numBarsTop} x ${bar.name}</td></tr>
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Stirrups</td><td style="padding:5px;">${stirrupDiam} mm @ ${Math.floor(spacing)} mm</td></tr>
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
+            </table>
+        `;
+
+        drawSection(b, h, cover, d, d_prime, numBarsBot, numBarsTop, bar.diam, stirrupDiam, true);
+        MathJax.typesetPromise();
+    }
+
+    // --- Logic: Analysis Mode ---
+    function calculateAnalysis() {
+        // Inputs
+        const fc = parseFloat(document.getElementById('a_fc').value);
+        const fy = parseFloat(document.getElementById('a_fy').value);
+        const b = parseFloat(document.getElementById('a_b').value);
+        const h = parseFloat(document.getElementById('a_h').value);
+        const cover = parseFloat(document.getElementById('a_cover').value);
+        
+        const botQty = parseInt(document.getElementById('a_botQty').value);
+        const botBar = rebarData[parseInt(document.getElementById('a_botSize').value)];
+        const topQty = parseInt(document.getElementById('a_topQty').value);
+        const topBar = rebarData[parseInt(document.getElementById('a_topSize').value)];
+        
+        const stirrupBar = rebarData[parseInt(document.getElementById('a_stirrupSize').value)];
+        const s = parseFloat(document.getElementById('a_spacing').value);
+
+        // Geometry
+        const d = h - cover - stirrupBar.diam - (botBar.diam/2);
+        const d_prime = cover + stirrupBar.diam + (topBar.diam/2);
+
+        const As = botQty * botBar.area;
+        const As_prime = topQty * topBar.area;
+
+        // Analysis: Find Nominal Moment Mn
+        let beta1 = 0.85;
+        if (fc > 28) beta1 = Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7);
+
+        // Assume tension yields. Check compression yield.
+        // Equilibrium: 0.85*fc*b*a + As'*fs' - As*fy = 0
+        // a = beta1 * c
+        // fs' = 600 * (c - d') / c   (MPa, from similar triangles, max fy)
+        
+        // This leads to a quadratic or iterative solution. Let's do a simple iterative solver for c.
+        let c = d / 5; // Start guess
+        let solved = false;
+        
+        for(let i=0; i<100; i++) {
+            let a = beta1 * c;
+            
+            // Tension stress
+            let es = 0.003 * (d - c) / c;
+            let fs = Math.min(fy, es * Es); // Check tension yield
+            if (fs < 0) fs = 0; // Should be in tension
+
+            // Compression stress
+            let es_prime = 0.003 * (c - d_prime) / c;
+            let fs_prime = Math.min(fy, es_prime * Es);
+            if (fs_prime < 0) fs_prime = 0; // Don't count if not in comp
+
+            // Force balance
+            let Cc = 0.85 * fc * b * a;
+            let Cs = As_prime * (fs_prime - 0.85*fc); // Subtract displaced concrete
+            let T = As * fs;
+
+            let Diff = Cc + Cs - T;
+
+            if (Math.abs(Diff) < 100) { // Tolerance in Newtons
+                solved = true;
+                break;
+            }
+
+            // Adjust c
+            c = c - (Diff / (0.85*fc*b*beta1 + 1000)); // Damping factor
+        }
+
+        // Calculate Mn
+        let a = beta1 * c;
+        let es_prime = 0.003 * (c - d_prime) / c;
+        let fs_prime = Math.min(fy, es_prime * Es);
+        let Cc = 0.85 * fc * b * a;
+        let Cs = As_prime * (fs_prime - 0.85*fc);
+        let T = As * fy; // Assume yield for final calc or use calculated fs if needed
+        // Re-calc Tension stress strictly
+        let es = 0.003 * (d - c) / c;
+        let fs = Math.min(fy, es * Es);
+        
+        // Sum moments about plastic centroid or tensile steel. Let's sum about tensile steel.
+        let Mn = Cc * (d - a/2) + Cs * (d - d_prime); // Nmm
+
+        let phi = 0.9;
+        if (es < 0.005) {
+            // Transition zone (ACI/SI)
+            let et = es;
+            if (et < 0.002) phi = 0.65;
+            else phi = 0.65 + (et - 0.002)*(250/3);
+        }
+
+        const PhiMn = phi * Mn;
+
+        // Shear Analysis
+        const Vc = 0.17 * Math.sqrt(fc) * b * d;
+        const stirrupArea = 2 * stirrupBar.area; // 2 legs
+        const Vs = (stirrupArea * fy * d) / s;
+        const Vn_shear = Vc + Vs;
+        
+        // Max Shear Check
+        const Vn_max = 0.66 * Math.sqrt(fc) * b * d; // Approx limit
+        const finalVn = Math.min(Vn_shear, Vn_max);
+        const PhiVn = 0.75 * finalVn;
+
+        // Spacing Check (Analysis)
+        const clearWidthA = b - 2*cover - 2*stirrupBar.diam;
+        const minClearSpacingA = Math.max(25, botBar.diam);
+        const actualClearSpacingA = (clearWidthA - botQty * botBar.diam) / (botQty - 1);
+        let spacingWarningA = "";
+        if (botQty > 1 && actualClearSpacingA < minClearSpacingA) {
+            spacingWarningA = `<div class="warning">ACI 318 Spacing Alert: Clear distance (${actualClearSpacingA.toFixed(1)}mm) < Min (${minClearSpacingA}mm).</div>`;
+        }
+
+        // --- Render Results ---
+        const rDiv = document.getElementById('a_results');
+        rDiv.style.display = 'block';
+        rDiv.innerHTML = `
+            <h4>Analysis Results</h4>
+            <div class="result-item highlight"><span>Design Moment Capacity ($\\phi M_n$):</span> <span>${(PhiMn/1e6).toFixed(1)} kN·m</span></div>
+            <div class="result-item"><span>Tensile Strain ($\\epsilon_t$):</span> <span>${es.toFixed(4)} (${es >= 0.005 ? 'Tension Controlled' : 'Transition/Compression'})</span></div>
+            <div class="result-item"><span>Neutral Axis (c):</span> <span>${c.toFixed(1)} mm</span></div>
+            <hr>
+            <div class="result-item"><span>Concrete Shear ($V_c$):</span> <span>${(Vc/1000).toFixed(1)} kN</span></div>
+            <div class="result-item"><span>Steel Shear ($V_s$):</span> <span>${(Vs/1000).toFixed(1)} kN</span></div>
+            <div class="result-item highlight"><span>Design Shear Capacity ($\\phi V_n$):</span> <span>${(PhiVn/1000).toFixed(1)} kN</span></div>
+            ${spacingWarningA}
+            <h4 style="margin-top:1rem; margin-bottom:0.5rem;">Reinforcement Schedule</h4>
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Bottom Bars</td><td style="padding:5px;">${botQty} x ${botBar.name}</td></tr>
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Top Bars</td><td style="padding:5px;">${topQty} x ${topBar.name}</td></tr>
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Stirrups</td><td style="padding:5px;">${stirrupBar.name} @ ${s} mm</td></tr>
+                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px; font-weight:600;">Concrete $f'_c$</td><td style="padding:5px;">${fc} MPa</td></tr>
+            </table>
+        `;
+
+        drawSection(b, h, cover, d, d_prime, botQty, topQty, botBar.diam, stirrupBar.diam, false);
+        MathJax.typesetPromise();
+    }
+
+    // --- Visualization ---
+    function drawSection(b, h, cover, d, d_prime, botCount, topCount, barDiam, stirrupDiam, isDesign) {
+        const cvs = document.getElementById('beamCanvas');
+        const ctx = cvs.getContext('2d');
+        const W = cvs.width;
+        const H = cvs.height;
+
+        // Clear
+        ctx.clearRect(0, 0, W, H);
+
+        // Scale factors to fit beam in canvas
+        const padding = 40;
+        const availW = W - padding * 2;
+        const availH = H - padding * 2;
+        
+        // Determine pixel per mm ratio
+        // Maintain aspect ratio
+        let scale = Math.min(availW / b, availH / h);
+        
+        const rectW = b * scale;
+        const rectH = h * scale;
+        const startX = (W - rectW) / 2;
+        const startY = (H - rectH) / 2;
+
+        // Draw Concrete
+        ctx.fillStyle = "#ecf0f1";
+        ctx.fillRect(startX, startY, rectW, rectH);
+        ctx.strokeStyle = "#34495e";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(startX, startY, rectW, rectH);
+
+        // Draw Stirrup
+        const stirInset = cover * scale;
+        ctx.strokeStyle = "#2980b9";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+        ctx.strokeRect(startX + stirInset, startY + stirInset, rectW - 2*stirInset, rectH - 2*stirInset);
+        ctx.setLineDash([]);
+
+        // Draw Bottom Bars
+        ctx.fillStyle = "#e74c3c";
+        ctx.strokeStyle = "#c0392b";
+        
+        const effBotWidth = rectW - 2*stirInset - (stirrupDiam*scale*2);
+        const botY = startY + rectH - (cover * scale) - (stirrupDiam * scale) - (barDiam * scale / 2);
+        
+        // Spacing logic
+        let gapBot = 0;
+        if (botCount > 1) {
+            gapBot = (effBotWidth - (botCount * barDiam * scale)) / (botCount - 1);
+        }
+
+        let currentX = startX + stirInset + (stirrupDiam*scale); // Start at left inner stirrup edge
+
+        // Center the group if gap is huge? No, usually distributed. 
+        // Simplification: Distribute evenly between stirrups
+        let barStep = (effBotWidth - (barDiam*scale)) / (botCount > 1 ? botCount -1 : 1);
+        if(botCount === 1) currentX += effBotWidth/2 - (barDiam*scale)/2;
+
+        for(let i=0; i<botCount; i++) {
+            ctx.beginPath();
+            let bx = (botCount > 1) ? currentX + i*barStep + (barDiam*scale)/2 : currentX + (barDiam*scale)/2;
+            ctx.arc(bx, botY, (barDiam * scale)/2, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // Draw Top Bars
+        if (topCount > 0) {
+            const topY = startY + (cover * scale) + (stirrupDiam * scale) + (barDiam * scale / 2); // Approximation for drawing
+            let barStepTop = (effBotWidth - (barDiam*scale)) / (topCount > 1 ? topCount -1 : 1);
+            let currentXTop = startX + stirInset + (stirrupDiam*scale);
+            
+            if(topCount === 1) currentXTop += effBotWidth/2 - (barDiam*scale)/2;
+
+            for(let i=0; i<topCount; i++) {
+                ctx.beginPath();
+                let bx = (topCount > 1) ? currentXTop + i*barStepTop + (barDiam*scale)/2 : currentXTop + (barDiam*scale)/2;
+                ctx.arc(bx, topY, (barDiam * scale)/2, 0, 2*Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        // Dimensions Annotations
+        ctx.fillStyle = "#2c3e50";
+        ctx.font = "12px Arial";
+        ctx.textAlign = "center";
+
+        // Width b
+        ctx.beginPath();
+        ctx.moveTo(startX, startY - 10);
+        ctx.lineTo(startX + rectW, startY - 10);
+        ctx.stroke();
+        ctx.fillText(`b = ${b} mm`, startX + rectW/2, startY - 15);
+
+        // Height h
+        ctx.textAlign = "left";
+        ctx.beginPath();
+        ctx.moveTo(startX + rectW + 10, startY);
+        ctx.lineTo(startX + rectW + 10, startY + rectH);
+        ctx.stroke();
+        ctx.fillText(`h = ${h}`, startX + rectW + 15, startY + rectH/2);
+
+        // Effective depth d
+        const d_pix = startY + (h - (h - d)) * scale; // d from top
+        // Draw line from top to centroid of steel
+        ctx.strokeStyle = "#7f8c8d";
+        ctx.beginPath();
+        ctx.moveTo(startX - 10, startY);
+        ctx.lineTo(startX - 10, botY);
+        ctx.stroke();
+        ctx.fillText(`d = ${d.toFixed(0)}`, startX - 55, startY + (botY-startY)/2);
+
+        // Details text
+        const detailsDiv = document.getElementById('viz_details');
+        detailsDiv.innerHTML = `
+            <strong>Section Properties:</strong><br>
+            b: ${b}mm | h: ${h}mm | d: ${d.toFixed(1)}mm<br>
+            Bottom Steel: ${botCount} bars | Top Steel: ${topCount} bars<br>
+            ${isDesign ? 'Stirrups: '+stirrupDiam+'M' : ''}
+        `;
+    }
+
+    // Initialize
+    window.onload = function() {
+        populateRebarSelects();
+    }
+
+</script>
+
+</body>
+</html>
