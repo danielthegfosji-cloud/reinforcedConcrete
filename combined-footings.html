@@ -751,7 +751,12 @@
         }
 
         // Init with calculation
-        window.onload = calculate; 
+        window.onload = function() {
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculate);
+            });
+            calculate();
+        };
     </script>
 </body>
 </html>

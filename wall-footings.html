@@ -647,7 +647,12 @@
         }
 
         // Initial Calculation on Load
-        window.onload = calculateDesign;
+        window.onload = function() {
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculateDesign);
+            });
+            calculateDesign();
+        };
     </script>
 </body>
 </html>

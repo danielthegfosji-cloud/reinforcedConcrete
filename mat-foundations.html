@@ -863,8 +863,14 @@
         }
 
         // Initialize
-        renderColumnList();
-        calculate();
+        window.onload = function() {
+            renderColumnList();
+            // Attach listeners to all inputs for live update
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculate);
+            });
+            calculate();
+        };
 
     </script>
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Short Column Interaction Diagram | RC Design Suite</title>
+    <title>Biaxial Bending Short Columns | RC Design Suite</title>
     
     <!-- External Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -141,6 +141,23 @@
             </div>
         </div>
 
+        <div class="section-header">Slenderness Check</div>
+        <div class="form-row">
+            <div class="form-col">
+                <label>Clear Height $l_u$ (m)</label>
+                <input type="number" id="lu" value="3.0" step="0.1">
+            </div>
+            <div class="form-col">
+                <label>Factor $k$</label>
+                <select id="k">
+                    <option value="1.0" selected>Pinned (1.0)</option>
+                    <option value="0.5">Fixed (0.5)</option>
+                    <option value="0.7">F-P (0.7)</option>
+                    <option value="2.0">Cant. (2.0)</option>
+                </select>
+            </div>
+        </div>
+
         <div class="section-header">Reinforcement</div>
         <div class="form-group">
             <label>Longitudinal Bar Size</label>
@@ -193,8 +210,8 @@
     <main class="content-area">
         <!-- Hero Section -->
         <div class="hero">
-            <h1>Interaction Diagram</h1>
-            <p>Generate $P_n-M_n$ interaction points for rectangular tied columns based on ACI 318M-11.</p>
+            <h1>Biaxial Bending Short Columns</h1>
+            <p>Generate $P_n-M_n$ interaction points and verify short column behavior for rectangular tied columns based on ACI 318M-11.</p>
         </div>
 
         <div class="grid-container">
@@ -258,6 +275,9 @@
             const nx = parseInt(document.getElementById('nx').value); // Bars in row along width
             const ny = parseInt(document.getElementById('ny').value); // Bars in col along depth
 
+            const lu = parseFloat(document.getElementById('lu').value) * 1000;
+            const k = parseFloat(document.getElementById('k').value);
+
             const Pn_in = parseFloat(document.getElementById('pn_input').value) || 0;
             const Mnx_in = parseFloat(document.getElementById('mnx_input').value) || 0;
             const Mny_in = parseFloat(document.getElementById('mny_input').value) || 0;
@@ -276,6 +296,14 @@
             // 3. Validation / Sanity Checks
             let errors = [];
             
+            // Slenderness Check
+            const r_x = 0.3 * h;
+            const r_y = 0.3 * b;
+            const lambda_max = Math.max((k * lu) / r_x, (k * lu) / r_y);
+            if (lambda_max > 22) {
+                errors.push(`Column is Slender (λ = ${lambda_max.toFixed(1)} > 22). Use the Slender Column tool for moment magnification.`);
+            }
+
             // Code Check: Steel Percentage (ACI 10.9.1: 1% to 8%)
             if (rho < 0.01) errors.push(`Reinforcement Ratio (${(rho*100).toFixed(2)}%) is below min 1%.`);
             if (rho > 0.08) errors.push(`Reinforcement Ratio (${(rho*100).toFixed(2)}%) exceeds max 8%.`);
@@ -795,6 +823,11 @@
 
         // Initialize with default values on load
         window.onload = function() {
+            const inputs = document.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('input', calculate);
+                input.addEventListener('change', calculate);
+            });
             calculate();
         };
 

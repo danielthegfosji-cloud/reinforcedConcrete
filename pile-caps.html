@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pile Cap Design | RC Design Suite</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .viz-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            min-height: 400px;
+        }
+
+        .canvas-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .canvas-title {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            width: 100%;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 0.5rem;
+        }
+
+        canvas {
+            max-width: 100%;
+            border: 1px dashed #e2e8f0;
+            background-color: #fafafa;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 99px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .status-pass { background: #dcfce7; color: #166534; }
+        .status-fail { background: #fee2e2; color: #991b1b; }
+
+        .calc-step {
+            margin-bottom: 2rem;
+            border-left: 3px solid var(--accent);
+            padding-left: 1.5rem;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .summary-table th, .summary-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        .summary-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+        }
+
+        .check-pass { color: var(--success); }
+        .check-fail { color: var(--error); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Pile Cap Design</h2>
+            
+            <div class="section-header">Material Properties</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" oninput="calculate()">
+                </div>
+            </div>
+
+            <div class="section-header">Loads & Piles</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Dead $P_D$ (kN)</label>
+                    <input type="number" id="PD" value="1200" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Live $P_L$ (kN)</label>
+                    <input type="number" id="PL" value="800" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Pile Cap. $Q_{all}$ (kN)</label>
+                    <input type="number" id="qall" value="600" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Pile Dia. (mm)</label>
+                    <input type="number" id="dpile" value="400" oninput="calculate()">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Piles</label>
+                <select id="nPiles" onchange="calculate()">
+                    <option value="2">2 Piles</option>
+                    <option value="3">3 Piles</option>
+                    <option value="4" selected>4 Piles</option>
+                    <option value="5">5 Piles</option>
+                    <option value="6">6 Piles</option>
+                </select>
+            </div>
+
+            <div class="section-header">Geometry</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Col. Size (mm)</label>
+                    <input type="number" id="colSize" value="400" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Pile Spacing (mm)</label>
+                    <input type="number" id="spacing" value="1200" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Thickness $h$ (mm)</label>
+                    <input type="number" id="h" value="800" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Edge Dist. (mm)</label>
+                    <input type="number" id="edge" value="400" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Bar Diameter (mm)</label>
+                <select id="barSize" onchange="calculate()">
+                    <option value="20">20 mm</option>
+                    <option value="25" selected>25 mm</option>
+                    <option value="32">32 mm</option>
+                </select>
+            </div>
+
+            <button class="calc-btn" onclick="calculate()">Recalculate</button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="hero">
+            <h1>Pile Cap Design</h1>
+            <p>Design reinforced concrete pile caps for groups of piles. Checks shear and flexural capacity based on ACI 318M-11.</p>
+        </div>
+
+        <div class="viz-container">
+            <div class="canvas-card">
+                <div class="canvas-title">Plan View (4-Pile Pattern)</div>
+                <canvas id="planCanvas" width="400" height="400"></canvas>
+            </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Elevation View</div>
+                <canvas id="elevCanvas" width="400" height="400"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="results-header">
+                <h2>Design Summary</h2>
+                <span id="statusBadge" class="status-badge">Calculating...</span>
+            </div>
+
+            <div id="calcOutput"></div>
+
+            <h3>Reinforcement Summary</h3>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Required</th>
+                        <th>Provided</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reinfTableBody"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function calculate() {
+            const fc = parseFloat(document.getElementById('fc').value) || 0;
+            const fy = parseFloat(document.getElementById('fy').value) || 0;
+            const PD = parseFloat(document.getElementById('PD').value) || 0;
+            const PL = parseFloat(document.getElementById('PL').value) || 0;
+            const Qall = parseFloat(document.getElementById('qall').value) || 1;
+            const dpile = parseFloat(document.getElementById('dpile').value) || 0;
+            const colSize = parseFloat(document.getElementById('colSize').value) || 0;
+            const spacing = parseFloat(document.getElementById('spacing').value) || 0;
+            const h = parseFloat(document.getElementById('h').value) || 0;
+            const edge = parseFloat(document.getElementById('edge').value) || 0;
+            const barSize = parseInt(document.getElementById('barSize').value) || 0;
+            const n_piles = parseInt(document.getElementById('nPiles').value);
+            const cover = 75;
+
+            const n_piles_req = Math.ceil((PD + PL) / Qall);
+            const Pu = 1.2 * PD + 1.6 * PL;
+            const Qu = Pu / n_piles;
+            const d = h - cover - barSize/2;
+
+            // Pile positions relative to center (in mm)
+            const positions = getPilePositions(n_piles, spacing);
+            
+            let minX = 0, maxX = 0, minY = 0, maxY = 0;
+            positions.forEach(p => {
+                minX = Math.min(minX, p[0]);
+                maxX = Math.max(maxX, p[0]);
+                minY = Math.min(minY, p[1]);
+                maxY = Math.max(maxY, p[1]);
+            });
+
+            const L_cap = Math.max((maxX - minX) + 2 * edge, dpile + 2 * edge);
+            const B_cap = Math.max((maxY - minY) + 2 * edge, dpile + 2 * edge);
+
+            // One-way shear at d from column face (check both directions)
+            const crit_x = colSize/2 + d;
+            let Vu1_x = 0;
+            positions.forEach(p => {
+                if (p[0] > crit_x) Vu1_x += Qu;
+            });
+            const crit_y = colSize/2 + d;
+            let Vu1_y = 0;
+            positions.forEach(p => {
+                if (p[1] > crit_y) Vu1_y += Qu;
+            });
+            const Vu1 = Math.max(Vu1_x, Vu1_y);
+            const phiVc1 = 0.75 * 0.17 * Math.sqrt(fc) * Math.min(L_cap, B_cap) * d / 1000;
+
+            // Flexure (Moment at face of column)
+            let Mu_x = 0;
+            positions.forEach(p => {
+                if (p[0] > colSize/2) Mu_x += Qu * (p[0] - colSize/2);
+            });
+            let Mu_y = 0;
+            positions.forEach(p => {
+                if (p[1] > colSize/2) Mu_y += Qu * (p[1] - colSize/2);
+            });
+            const Mu = Math.max(Mu_x, Mu_y) / 1000; // kNm
+
+            // Punching shear around column
+            const bo = 4 * (colSize + d);
+            const Vu2 = Pu; 
+            const phiVc2 = 0.75 * 0.33 * Math.sqrt(fc) * bo * d / 1000;
+
+            // Flexure
+            const Rn = (Mu * 1e6) / (0.9 * Math.min(L_cap, B_cap) * d * d);
+            const rho = (0.85 * fc / fy) * (1 - Math.sqrt(Math.max(0, 1 - (2 * Rn) / (0.85 * fc))));
+            const As_req = Math.max(rho * Math.min(L_cap, B_cap) * d, 0.0018 * Math.min(L_cap, B_cap) * h);
+            const n_bars = Math.ceil(As_req / (Math.PI * barSize**2 / 4));
+            const As_prov = n_bars * (Math.PI * barSize**2 / 4);
+
+            // Status
+            let pass = (h >= 400) && (Vu1 <= phiVc1) && (Vu2 <= phiVc2) && (n_piles_req <= n_piles);
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'status-badge ' + (pass ? 'status-pass' : 'status-fail');
+            badge.innerText = pass ? 'Design OK' : 'Check Design';
+
+            document.getElementById('calcOutput').innerHTML = `
+                <div class="calc-step">
+                    <h3>1. Pile Requirements</h3>
+                    Piles Required: $n_{req} = \\lceil ${PD+PL} / ${Qall} \\rceil = ${n_piles_req}$ <br>
+                    Using ${n_piles}-pile cap pattern. <br>
+                    Factored Load per Pile: $Q_u = ${Pu.toFixed(1)} / ${n_piles} = ${Qu.toFixed(1)} \\text{ kN}$
+                </div>
+                <div class="calc-step">
+                    <h3>2. Shear Checks</h3>
+                    One-way Shear: $V_{u1} = ${Vu1.toFixed(1)} \\text{ kN}$ vs $\\phi V_c = ${phiVc1.toFixed(1)} \\text{ kN}$ <br>
+                    Punching Shear: $V_{u2} = ${Vu2.toFixed(1)} \\text{ kN}$ vs $\\phi V_c = ${phiVc2.toFixed(1)} \\text{ kN}$
+                </div>
+                <div class="calc-step">
+                    <h3>3. Minimum Depth Check</h3>
+                    Provided $h = ${h} \\text{ mm}$. ACI 318 requires min 400mm for pile caps. <br>
+                    Depth above bars: $h - cover = ${h-cover} \\text{ mm}$ (Min 300mm required).
+                </div>
+            `;
+
+            document.getElementById('reinfTableBody').innerHTML = `
+                <tr><td>Main Steel (Each Way)</td><td>${As_req.toFixed(0)} mm²</td><td>${n_bars} - ${barSize}mm</td><td class="${pass?'check-pass':'check-fail'}">${pass?'OK':'FAIL'}</td></tr>
+            `;
+
+            drawPlan(L_cap, B_cap, colSize, dpile, spacing, positions, n_bars);
+            drawElevation(L_cap, h, dpile, spacing, colSize, positions, n_bars);
+            MathJax.typesetPromise();
+        }
+
+        function getPilePositions(n, s) {
+            switch (n) {
+                case 2: return [[-s/2, 0], [s/2, 0]];
+                case 3: return [[0, s/Math.sqrt(3)], [-s/2, -s/(2*Math.sqrt(3))], [s/2, -s/(2*Math.sqrt(3))]];
+                case 4: return [[-s/2, -s/2], [s/2, -s/2], [-s/2, s/2], [s/2, s/2]];
+                case 5: return [[-s/2, -s/2], [s/2, -s/2], [-s/2, s/2], [s/2, s/2], [0, 0]];
+                case 6: return [[-s, -s/2], [0, -s/2], [s, -s/2], [-s, s/2], [0, s/2], [s, s/2]];
+                default: return [];
+            }
+        }
+
+        function drawDim(ctx, x1, y1, x2, y2, text, isVert) {
+            ctx.strokeStyle = '#64748b';
+            ctx.fillStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.font = '10px Inter';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            if (isVert) {
+                ctx.beginPath(); ctx.moveTo(x1-3, y1); ctx.lineTo(x1+3, y1); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x2-3, y2); ctx.lineTo(x2+3, y2); ctx.stroke();
+                ctx.save();
+                ctx.translate(x1-5, (y1+y2)/2);
+                ctx.rotate(-Math.PI/2);
+                ctx.textAlign = 'center';
+                ctx.fillText(text, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.beginPath(); ctx.moveTo(x1, y1-3); ctx.lineTo(x1, y1+3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x2, y2-3); ctx.lineTo(x2, y2+3); ctx.stroke();
+                ctx.textAlign = 'center';
+                ctx.fillText(text, (x1+x2)/2, y1-5);
+            }
+        }
+
+        function drawPlan(L, B, col, dp, s, positions, n_bars) {
+            const canvas = document.getElementById('planCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 400);
+            const scale = 250 / Math.max(L, B);
+            const ox = 200 - (L*scale)/2, oy = 200 - (B*scale)/2;
+            
+            // Footing
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(ox, oy, L*scale, B*scale);
+
+            // Reinforcement Grid
+            const cover = 75;
+            const drawCover = cover * scale;
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; // Faint red
+            ctx.lineWidth = 1;
+            
+            if (n_bars > 1) {
+                const spacingL = (L - 2 * cover) / (n_bars - 1);
+                const spacingB = (B - 2 * cover) / (n_bars - 1);
+                
+                for (let i = 0; i < n_bars; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(ox + drawCover + i * spacingL * scale, oy + drawCover);
+                    ctx.lineTo(ox + drawCover + i * spacingL * scale, oy + B * scale - drawCover);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(ox + drawCover, oy + drawCover + i * spacingB * scale);
+                    ctx.lineTo(ox + L * scale - drawCover, oy + drawCover + i * spacingB * scale);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(ox + (L-col)/2*scale, oy + (B-col)/2*scale, col*scale, col*scale);
+            ctx.strokeRect(ox + (L-col)/2*scale, oy + (B-col)/2*scale, col*scale, col*scale);
+            // Piles
+            positions.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(ox + (L/2 + p[0])*scale, oy + (B/2 - p[1])*scale, (dp/2)*scale, 0, 2*Math.PI);
+                ctx.stroke();
+            });
+            drawDim(ctx, ox, oy - 20, ox + L*scale, oy - 20, `L=${L.toFixed(0)}`, false);
+            drawDim(ctx, ox - 20, oy, ox - 20, oy + B*scale, `B=${B.toFixed(0)}`, true);
+        }
+
+        function drawElevation(L, h, dp, s, col, positions, n_bars) {
+            const canvas = document.getElementById('elevCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 400);
+            const scale = 250 / Math.max(L, h*2);
+            const ox = 200 - (L*scale)/2, oy = 150;
+            
+            // Footing
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(ox, oy, L*scale, h*scale);
+
+            // Column
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(ox + (L-col)/2*scale, oy - 50, col*scale, 50);
+            ctx.strokeRect(ox + (L-col)/2*scale, oy - 50, col*scale, 50);
+
+            // Piles
+            const x_projections = [...new Set(positions.map(p => p[0]))].sort((a,b) => a-b);
+            x_projections.forEach(px => {
+                ctx.strokeRect(ox + (L/2 + px - dp/2)*scale, oy + h*scale, dp*scale, 50);
+            });
+
+            // Rebar
+            const cover = 75;
+            const drawCover = cover * scale;
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            
+            // Bottom main bar
+            ctx.beginPath();
+            ctx.moveTo(ox + drawCover, oy + h*scale - drawCover);
+            ctx.lineTo(ox + L*scale - drawCover, oy + h*scale - drawCover);
+            ctx.stroke();
+            
+            // Transverse bars (dots)
+            if (n_bars > 1) {
+                const spacingL = (L - 2 * cover) / (n_bars - 1);
+                ctx.fillStyle = '#ef4444';
+                for (let i = 0; i < n_bars; i++) {
+                    ctx.beginPath();
+                    ctx.arc(ox + drawCover + i * spacingL * scale, oy + h*scale - drawCover - 5, 2, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+            }
+
+            drawDim(ctx, ox + L*scale + 10, oy, ox + L*scale + 10, oy + h*scale, `h=${h}`, true);
+        }
+        window.onload = calculate;
+    </script>
+</body>
+</html>

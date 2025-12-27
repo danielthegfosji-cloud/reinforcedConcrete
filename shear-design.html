@@ -575,6 +575,15 @@
             ctx.fillText(text, mid, y - 5);
         }
 
+        // Initialize
+        window.onload = function() {
+            // Attach listeners to all inputs for live update
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculateShear);
+            });
+            calculateShear();
+        };
+
     </script>
 </body>
 </html>

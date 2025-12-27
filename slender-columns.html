@@ -19,6 +19,8 @@
     </script>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         .radio-group { display: flex; gap: 1rem; margin-top: 0.5rem; }
@@ -202,6 +204,15 @@
                 </div>
             </div>
 
+            <!-- Interaction Diagram Section -->
+            <div class="card">
+                <h3 style="margin-bottom: 1rem;">Interaction Diagram & Capacity Check</h3>
+                <div style="height: 400px;">
+                    <canvas id="interactionChart"></canvas>
+                </div>
+                <div id="capacityCheckResult" style="margin-top: 1rem;"></div>
+            </div>
+
             <!-- Calculation Summary -->
             <div class="card">
                 <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Analysis Report</h3>
@@ -225,6 +236,7 @@
     <script>
         // --- CONSTANTS & STATE ---
         const E_STEEL = 200000; // MPa
+        let interactionChart = null;
         
         // --- DOM ELEMENTS ---
         const inputs = document.querySelectorAll('input, select');
@@ -353,7 +365,7 @@
                 Pc = (Math.PI * Math.PI * EI) / Math.pow(k * lu, 2); // Newtons
 
                 // Cm Factor
-                if (sway === 'nonsway') {
+                if (sway === 'braced') {
                     Cm = 0.6 + (0.4 * mRatio);
                     if (Cm < 0.4) Cm = 0.4;
                 } else {
@@ -426,6 +438,137 @@
             // 5. Draw Visuals
             drawSection(b, h, cover, tieDia, barDia, nbars);
             drawElevation(lu, k, delta, curvature, isSlender);
+
+            // 6. Update Interaction Diagram
+            updateInteractionDiagram(fc, fy, b, h, cover, tieDia, barDia, nbars, Pu, Mc);
+        }
+
+        function updateInteractionDiagram(fc, fy, b, h, cover, tieDia, barDia, nbars, Pu_N, Mc_Nmm) {
+            const ctx = document.getElementById('interactionChart').getContext('2d');
+            
+            // 1. Generate Points (Simplified for 2 layers as drawn in section)
+            const d_prime = cover + tieDia + barDia/2;
+            const d = h - d_prime;
+            const As_layer = (nbars / 2) * (Math.PI * Math.pow(barDia, 2) / 4);
+            const Ag = b * h;
+            const Es = 200000;
+            const ec_lim = 0.003;
+            
+            function getBeta1(fc_val) {
+                if (fc_val <= 28) return 0.85;
+                let beta = 0.85 - 0.05 * (fc_val - 28) / 7;
+                return Math.max(0.65, beta);
+            }
+            const beta1 = getBeta1(fc);
+
+            const points_design = [];
+            
+            // Iterate c from very small to very large
+            let c_steps = [0.1, d_prime, d*0.5, d*0.6, d*0.8, d, h, h*1.2, h*1.5, 99999];
+            for(let i=1; i<40; i++) c_steps.push(h * (i/40) * 2);
+            c_steps.sort((a,b) => a-b);
+
+            c_steps.forEach(c => {
+                let Pn = 0;
+                let Mn = 0;
+
+                let a = beta1 * c;
+                if (a > h) a = h;
+                const Cc = 0.85 * fc * a * b;
+                Pn += Cc;
+                Mn += Cc * (h/2 - a/2);
+
+                const layers = [
+                    { d_i: d_prime, As: As_layer },
+                    { d_i: d, As: As_layer }
+                ];
+
+                let et = 0;
+                layers.forEach(l => {
+                    const eps = ec_lim * (c - l.d_i) / c;
+                    let fs = eps * Es;
+                    if (fs > fy) fs = fy;
+                    if (fs < -fy) fs = -fy;
+                    
+                    let force = fs * l.As;
+                    if (eps > 0 && a > l.d_i) force -= 0.85 * fc * l.As; 
+                    
+                    Pn += force;
+                    Mn += force * (h/2 - l.d_i);
+                    if (l.d_i === d) et = Math.abs(eps);
+                });
+
+                let phi = 0.65;
+                const ey = fy / Es;
+                if (et >= 0.005) phi = 0.90;
+                else if (et > ey) phi = 0.65 + 0.25 * (et - ey) / (0.005 - ey);
+
+                points_design.push({ x: (Mn * phi) / 1e6, y: (Pn * phi) / 1000 });
+            });
+
+            const Ast = nbars * (Math.PI * Math.pow(barDia, 2) / 4);
+            const P0 = 0.85 * fc * (Ag - Ast) + fy * Ast;
+            const PhiPn_max = 0.65 * 0.80 * P0 / 1000;
+
+            const design_clipped = points_design.map(p => ({
+                x: p.x,
+                y: Math.min(p.y, PhiPn_max)
+            })).filter(p => p.y >= 0);
+
+            const Pu_kN = Pu_N / 1000;
+            const Mc_kNm = Mc_Nmm / 1e6;
+            
+            let Mcap = 0;
+            for (let i = 0; i < design_clipped.length - 1; i++) {
+                const p1 = design_clipped[i];
+                const p2 = design_clipped[i+1];
+                if ((p1.y <= Pu_kN && p2.y >= Pu_kN) || (p1.y >= Pu_kN && p2.y <= Pu_kN)) {
+                    if (Math.abs(p1.y - p2.y) > 0.01) Mcap = p1.x + (p2.x - p1.x) * (Pu_kN - p1.y) / (p2.y - p1.y);
+                    else Mcap = Math.max(p1.x, p2.x);
+                    break;
+                }
+            }
+            
+            const isInside = (Pu_kN <= PhiPn_max && Mc_kNm <= Mcap + 0.01);
+            const resultEl = document.getElementById('capacityCheckResult');
+            if (isInside) {
+                resultEl.innerHTML = `<div class="status-box status-success"><i class="fa-solid fa-circle-check"></i> <strong>Safe:</strong> Load point is within the interaction curve. (D/C Ratio: ${(Mcap > 0 ? Mc_kNm/Mcap : 0).toFixed(3)})</div>`;
+            } else {
+                resultEl.innerHTML = `<div class="status-box status-danger"><i class="fa-solid fa-circle-xmark"></i> <strong>Unsafe:</strong> Load point exceeds section capacity. Increase dimensions or reinforcement.</div>`;
+            }
+
+            if (interactionChart) interactionChart.destroy();
+            interactionChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Design Strength (φPn-φMn)',
+                            data: design_clipped,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            showLine: true,
+                            pointRadius: 0,
+                            fill: true
+                        },
+                        {
+                            label: 'Magnified Load Point',
+                            data: [{ x: Mc_kNm, y: Pu_kN }],
+                            backgroundColor: '#ef4444',
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Moment (kN-m)' }, min: 0 },
+                        y: { title: { display: true, text: 'Axial Load (kN)' }, min: 0 }
+                    }
+                }
+            });
         }
 
         // --- DRAWING FUNCTIONS ---
@@ -471,28 +614,29 @@
 
             // Bars
             ctx.fillStyle = '#0f172a';
-            // Logic: Two faces (Top/Bottom in drawing orientation = h direction in design? No, usually bending is about main axis)
-            // Let's put bars on Left and Right faces (axis of bending horizontal)
+            // Logic: Two faces (Top/Bottom in drawing orientation = h direction in design).
+            // Since slenderness is checked against 'h', we assume bending is in the 'h' direction.
+            // Therefore, bars should be on the Top and Bottom faces to maximize the lever arm.
             const barsPerSide = Math.ceil(nbars / 2);
             const barRad = (barDia * scale) / 2;
 
-            const leftX = tieX + tieDia*scale + barRad;
-            const rightX = tieX + tieW - tieDia*scale - barRad;
+            const topY = tieY + tieDia*scale + barRad;
+            const botY = tieY + tieH - tieDia*scale - barRad;
             
-            // Vertical distribution
-            // Available height inside ties
-            const innerH = tieH - 2*tieDia*scale - 2*barRad;
-            const spacingY = barsPerSide > 1 ? innerH / (barsPerSide - 1) : 0;
-            const startY = tieY + tieDia*scale + barRad;
+            // Horizontal distribution
+            // Available width inside ties
+            const innerW = tieW - 2*tieDia*scale - 2*barRad;
+            const spacingX = barsPerSide > 1 ? innerW / (barsPerSide - 1) : 0;
+            const startX_bars = tieX + tieDia*scale + barRad;
 
             for(let i=0; i<barsPerSide; i++) {
-                // Left
+                // Top
                 ctx.beginPath();
-                ctx.arc(leftX, startY + i*spacingY, barRad, 0, 2*Math.PI);
+                ctx.arc(startX_bars + i*spacingX, topY, barRad, 0, 2*Math.PI);
                 ctx.fill();
-                // Right
+                // Bottom
                 ctx.beginPath();
-                ctx.arc(rightX, startY + i*spacingY, barRad, 0, 2*Math.PI);
+                ctx.arc(startX_bars + i*spacingX, botY, barRad, 0, 2*Math.PI);
                 ctx.fill();
             }
         }

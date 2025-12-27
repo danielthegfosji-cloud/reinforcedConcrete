@@ -1215,6 +1215,17 @@
             link.click();
             document.body.removeChild(link);
         }
+
+        // Initialize
+        window.onload = function() {
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', () => {
+                    const activeTab = document.querySelector('.tab-btn.active').innerText.toLowerCase();
+                    if (activeTab.includes('design')) calculateDesign();
+                    else calculateAnalysis();
+                });
+            });
+        };
     </script>
 </body>
 </html>

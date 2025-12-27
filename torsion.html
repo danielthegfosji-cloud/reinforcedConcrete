@@ -687,6 +687,15 @@
             ctx.fill();
             ctx.stroke();
         }
+
+        // Initialize
+        window.onload = function() {
+            // Attach listeners to all inputs for live update
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculateTorsion);
+            });
+        };
+
     </script>
 </body>
 </html>

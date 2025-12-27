@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retaining Wall Design | RC Design Suite</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .viz-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .canvas-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .canvas-title {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            width: 100%;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        canvas {
+            max-width: 100%;
+            border: 1px dashed #e2e8f0;
+            background-color: #fafafa;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 99px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .status-pass { background: #dcfce7; color: #166534; }
+        .status-fail { background: #fee2e2; color: #991b1b; }
+
+        .calc-step {
+            margin-bottom: 2rem;
+            border-left: 3px solid var(--accent);
+            padding-left: 1.5rem;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .summary-table th, .summary-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        .summary-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+        }
+
+        .check-pass { color: var(--success); }
+        .check-fail { color: var(--error); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Retaining Wall</h2>
+            
+            <div class="section-header">Geometry (m)</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Total Height $H$</label>
+                    <input type="number" id="H" value="6.0" step="0.1" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Base Width $B$</label>
+                    <input type="number" id="B" value="3.5" step="0.1" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Toe Length</label>
+                    <input type="number" id="Ltoe" value="1.0" step="0.1" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Base Thick. $h_b$</label>
+                    <input type="number" id="hb" value="0.6" step="0.05" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Stem Top $t_1$</label>
+                    <input type="number" id="t1" value="0.3" step="0.05" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Stem Bot $t_2$</label>
+                    <input type="number" id="t2" value="0.5" step="0.05" oninput="calculate()">
+                </div>
+            </div>
+
+            <div class="section-header">Soil & Loads</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Soil $\gamma$ (kN/m³)</label>
+                    <input type="number" id="gamma" value="18" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Friction $\phi^\circ$</label>
+                    <input type="number" id="phi" value="30" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Coeff. Friction $\mu$</label>
+                    <input type="number" id="mu" value="0.5" step="0.05" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Surcharge $q_s$ (kPa)</label>
+                    <input type="number" id="qs" value="10" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Allow. Bearing $q_a$ (kPa)</label>
+                <input type="number" id="qa" value="200" oninput="calculate()">
+            </div>
+
+            <div class="section-header">Materials</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" oninput="calculate()">
+                </div>
+            </div>
+
+            <button class="calc-btn" onclick="calculate()">Recalculate</button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="hero">
+            <h1>Cantilever Retaining Wall</h1>
+            <p>Stability analysis and structural design based on ACI 318M-11 and Rankine Earth Pressure theory.</p>
+        </div>
+
+        <div class="viz-container">
+            <div class="canvas-card">
+                <div class="canvas-title">Wall Cross-Section & Reinforcement</div>
+                <canvas id="wallCanvas" width="400" height="450"></canvas>
+            </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Stability & Pressure Diagram</div>
+                <canvas id="stabilityCanvas" width="400" height="450"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="results-header">
+                <h2>Design Summary</h2>
+                <span id="statusBadge" class="status-badge">Calculating...</span>
+            </div>
+
+            <div id="calcOutput"></div>
+
+            <h3>Reinforcement Summary</h3>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Moment $M_u$</th>
+                        <th>Required $A_s$</th>
+                        <th>Placement</th>
+                    </tr>
+                </thead>
+                <tbody id="reinfTableBody"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function calculate() {
+            // Inputs
+            const H = parseFloat(document.getElementById('H').value);
+            const B = parseFloat(document.getElementById('B').value);
+            const Ltoe = parseFloat(document.getElementById('Ltoe').value);
+            const hb = parseFloat(document.getElementById('hb').value);
+            const t1 = parseFloat(document.getElementById('t1').value);
+            const t2 = parseFloat(document.getElementById('t2').value);
+            const gamma = parseFloat(document.getElementById('gamma').value);
+            const phi = parseFloat(document.getElementById('phi').value);
+            const mu = parseFloat(document.getElementById('mu').value);
+            const qs = parseFloat(document.getElementById('qs').value);
+            const qa = parseFloat(document.getElementById('qa').value);
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+
+            const Hstem = H - hb;
+            const Lheel = B - Ltoe - t2;
+
+            // 1. Earth Pressure (Rankine)
+            const ka = (1 - Math.sin(phi * Math.PI / 180)) / (1 + Math.sin(phi * Math.PI / 180));
+            const Pa = 0.5 * ka * gamma * H * H;
+            const Ps = ka * qs * H;
+            const TotalH = Pa + Ps;
+            const Mover = Pa * (H / 3) + Ps * (H / 2);
+
+            // 2. Weights and Resisting Moments (about Toe)
+            const W1 = t1 * Hstem * 24; // Stem Rect
+            const x1 = Ltoe + (t2 - t1) + t1 / 2;
+            
+            const W2 = 0.5 * (t2 - t1) * Hstem * 24; // Stem Tri
+            const x2 = Ltoe + (2 / 3) * (t2 - t1);
+            
+            const W3 = B * hb * 24; // Base
+            const x3 = B / 2;
+            
+            const W4 = Lheel * Hstem * gamma; // Soil above heel
+            const x4 = B - Lheel / 2;
+            
+            const W5 = Lheel * qs; // Surcharge above heel
+            const x5 = B - Lheel / 2;
+
+            const TotalW = W1 + W2 + W3 + W4 + W5;
+            const Mres = (W1 * x1) + (W2 * x2) + (W3 * x3) + (W4 * x4) + (W5 * x5);
+
+            // 3. Stability Checks
+            const FS_over = Mres / Mover;
+            const FS_slide = (mu * TotalW) / TotalH;
+            
+            const x_res = (Mres - Mover) / TotalW;
+            const e = Math.abs(B / 2 - x_res);
+            const q_toe = (TotalW / B) * (1 + 6 * e / B);
+            const q_heel = (TotalW / B) * (1 - 6 * e / B);
+
+            // 4. Structural Design (Factored)
+            const phi_f = 0.9;
+            const cover = 0.075; // 75mm
+
+            // Stem Design (at base)
+            const Pa_stem = 0.5 * ka * gamma * Hstem * Hstem;
+            const Ps_stem = ka * qs * Hstem;
+            const Mu_stem = 1.6 * (Pa_stem * Hstem / 3 + Ps_stem * Hstem / 2);
+            const d_stem = t2 - cover - 0.012; // approx
+            const As_stem = calculateAs(Mu_stem, d_stem, 1.0, fc, fy);
+
+            // Toe Design (at face of stem)
+            // Upward pressure at face of stem
+            const q_face = q_heel + (q_toe - q_heel) * (B - Ltoe) / B;
+            const Mu_toe = 1.6 * ( (q_face + q_toe)/2 * Ltoe * Ltoe/2 ) - 1.2 * (hb * Ltoe * 24 * Ltoe/2);
+            const d_base = hb - cover - 0.012;
+            const As_toe = calculateAs(Math.max(0, Mu_toe), d_base, 1.0, fc, fy);
+
+            // Heel Design (at face of stem)
+            const Mu_heel = 1.2 * ( (Hstem * gamma + hb * 24 + qs) * Lheel * Lheel / 2 );
+            const As_heel = calculateAs(Mu_heel, d_base, 1.0, fc, fy);
+
+            // Status
+            const pass = (FS_over >= 2.0) && (FS_slide >= 1.5) && (q_toe <= qa) && (e <= B/6);
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'status-badge ' + (pass ? 'status-pass' : 'status-fail');
+            badge.innerText = pass ? 'Design Satisfactory' : 'Check Stability';
+
+            document.getElementById('calcOutput').innerHTML = `
+                <div class="calc-step">
+                    <h3>1. Stability Analysis</h3>
+                    Active Pressure Coeff. $k_a = ${ka.toFixed(3)}$ <br>
+                    Overturning Moment $M_{ot} = ${Mover.toFixed(1)} \\text{ kNm/m}$ <br>
+                    Resisting Moment $M_{res} = ${Mres.toFixed(1)} \\text{ kNm/m}$ <br>
+                    <strong>FS Overturning: ${FS_over.toFixed(2)}</strong> (Min 2.0) <br>
+                    <strong>FS Sliding: ${FS_slide.toFixed(2)}</strong> (Min 1.5)
+                </div>
+                <div class="calc-step">
+                    <h3>2. Bearing Pressure</h3>
+                    Resultant Location $x = ${x_res.toFixed(2)} \\text{ m}$ from toe. <br>
+                    Eccentricity $e = ${e.toFixed(3)} \\text{ m}$ (Limit $B/6 = ${(B/6).toFixed(3)}$) <br>
+                    Max Pressure $q_{toe} = ${q_toe.toFixed(1)} \\text{ kPa}$ (Allow. ${qa} kPa)
+                </div>
+            `;
+
+            document.getElementById('reinfTableBody').innerHTML = `
+                <tr><td>Stem (Base)</td><td>${Mu_stem.toFixed(1)} kNm</td><td>${As_stem.toFixed(0)} mm²/m</td><td>Vertical (Soil Side)</td></tr>
+                <tr><td>Toe</td><td>${Mu_toe.toFixed(1)} kNm</td><td>${As_toe.toFixed(0)} mm²/m</td><td>Bottom Transverse</td></tr>
+                <tr><td>Heel</td><td>${Mu_heel.toFixed(1)} kNm</td><td>${As_heel.toFixed(0)} mm²/m</td><td>Top Transverse</td></tr>
+            `;
+
+            drawWall(H, B, Ltoe, hb, t1, t2);
+            drawStabilityDiagram(B, x_res, q_toe, q_heel, qa);
+            MathJax.typesetPromise();
+        }
+
+        function calculateAs(Mu, d, b, fc, fy) {
+            if (Mu <= 0) return 0.0018 * b * 1000 * (d * 1000 + 75); // Min steel
+            const Rn = (Mu * 1e6) / (0.9 * b * 1000 * Math.pow(d * 1000, 2));
+            const rho = (0.85 * fc / fy) * (1 - Math.sqrt(Math.max(0, 1 - (2 * Rn) / (0.85 * fc))));
+            const As = Math.max(rho, 0.0018) * b * 1000 * (d * 1000);
+            return As;
+        }
+
+        function drawWall(H, B, Ltoe, hb, t1, t2) {
+            const canvas = document.getElementById('wallCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 450);
+
+            const scale = 300 / Math.max(H, B);
+            const ox = 50, oy = 380;
+
+            const h_px = H * scale;
+            const b_px = B * scale;
+            const hb_px = hb * scale;
+            const t1_px = t1 * scale;
+            const t2_px = t2 * scale;
+            const lt_px = Ltoe * scale;
+
+            // 1. Draw Concrete
+            ctx.beginPath();
+            ctx.moveTo(ox, oy); // Bottom Left Toe
+            ctx.lineTo(ox + b_px, oy); // Bottom Right Heel
+            ctx.lineTo(ox + b_px, oy - hb_px); // Top Right Heel
+            ctx.lineTo(ox + lt_px + t2_px, oy - hb_px); // Stem Back Base
+            ctx.lineTo(ox + lt_px + (t2_px - t1_px) + t1_px, oy - h_px); // Stem Back Top
+            ctx.lineTo(ox + lt_px + (t2_px - t1_px), oy - h_px); // Stem Front Top
+            ctx.lineTo(ox + lt_px, oy - hb_px); // Stem Front Base
+            ctx.lineTo(ox, oy - hb_px); // Top Left Toe
+            ctx.closePath();
+            
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fill();
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 2. Draw Soil (Backfill)
+            ctx.fillStyle = 'rgba(120, 113, 108, 0.2)';
+            ctx.beginPath();
+            ctx.moveTo(ox + b_px, oy - hb_px);
+            ctx.lineTo(ox + b_px, oy - h_px);
+            ctx.lineTo(ox + lt_px + (t2_px - t1_px) + t1_px, oy - h_px);
+            ctx.lineTo(ox + lt_px + t2_px, oy - hb_px);
+            ctx.fill();
+
+            // 3. Draw Reinforcement (Red lines)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+
+            // Stem Vertical (Back face)
+            ctx.beginPath();
+            ctx.moveTo(ox + lt_px + t2_px - 10, oy - hb_px);
+            ctx.lineTo(ox + lt_px + (t2_px - t1_px) + t1_px - 10, oy - h_px + 20);
+            ctx.stroke();
+
+            // Heel Top
+            ctx.beginPath();
+            ctx.moveTo(ox + lt_px + t2_px, oy - hb_px + 10);
+            ctx.lineTo(ox + b_px - 10, oy - hb_px + 10);
+            ctx.stroke();
+
+            // Toe Bottom
+            ctx.beginPath();
+            ctx.moveTo(ox + 10, oy - 10);
+            ctx.lineTo(ox + lt_px, oy - 10);
+            ctx.stroke();
+
+            // 4. Dimensions
+            drawDim(ctx, ox, oy + 25, ox + b_px, oy + 25, `B=${B}m`, false);
+            drawDim(ctx, ox - 35, oy - h_px, ox - 35, oy, `H=${H}m`, true);
+            drawDim(ctx, ox + lt_px + (t2-t1)*scale, oy - h_px - 15, ox + lt_px + t2_px, oy - h_px - 15, `t1=${t1}m`, false);
+            drawDim(ctx, ox, oy + 45, ox + lt_px, oy + 45, `Ltoe=${Ltoe}m`, false);
+            drawDim(ctx, ox + b_px + 15, oy - hb_px, ox + b_px + 15, oy, `hb=${hb}m`, true);
+            drawDim(ctx, ox + lt_px, oy - hb_px + 20, ox + lt_px + t2_px, oy - hb_px + 20, `t2=${t2}m`, false);
+        }
+
+        function drawStabilityDiagram(B, x_res, q_toe, q_heel, qa) {
+            const canvas = document.getElementById('stabilityCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 450);
+
+            const ox = 50, oy = 150;
+            const scaleB = 300 / B;
+            const maxQ = Math.max(q_toe, q_heel, qa);
+            const scaleQ = 150 / maxQ;
+
+            const b_px = B * scaleB;
+            const xr_px = x_res * scaleB;
+            const qt_px = q_toe * scaleQ;
+            const qh_px = q_heel * scaleQ;
+            const qa_px = qa * scaleQ;
+
+            // 1. Draw Base Line
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox + b_px, oy);
+            ctx.stroke();
+
+            // 2. Draw Kern (Middle Third)
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.1)';
+            ctx.fillRect(ox + b_px / 3, oy - 20, b_px / 3, 40);
+            ctx.strokeStyle = '#22c55e';
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(ox + b_px / 3, oy - 20, b_px / 3, 40);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#166534';
+            ctx.font = '10px Inter';
+            ctx.fillText('KERN', ox + b_px / 2 - 15, oy - 25);
+
+            // 3. Draw Pressure Distribution
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox + b_px, oy);
+            ctx.lineTo(ox + b_px, oy + qh_px);
+            ctx.lineTo(ox, oy + qt_px);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#3b82f6';
+            ctx.stroke();
+
+            // 4. Draw Resultant Force
+            ctx.strokeStyle = '#ef4444';
+            ctx.fillStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            drawArrow(ctx, ox + xr_px, oy - 80, ox + xr_px, oy);
+            ctx.fillText(`R (x=${x_res.toFixed(2)}m)`, ox + xr_px + 5, oy - 60);
+
+            // 5. Labels
+            ctx.fillStyle = '#0f172a';
+            ctx.fillText(`q_toe: ${q_toe.toFixed(1)} kPa`, ox, oy + qt_px + 15);
+            ctx.fillText(`q_heel: ${q_heel.toFixed(1)} kPa`, ox + b_px - 80, oy + qh_px + 15);
+            
+            // Allowable line
+            ctx.strokeStyle = '#991b1b';
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.moveTo(ox - 10, oy + qa_px);
+            ctx.lineTo(ox + b_px + 10, oy + qa_px);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#991b1b';
+            ctx.fillText(`Allowable qa: ${qa} kPa`, ox + b_px + 15, oy + qa_px + 4);
+        }
+
+        function drawArrow(ctx, fromx, fromy, tox, toy) {
+            const headlen = 10;
+            const angle = Math.atan2(toy - fromy, tox - fromx);
+            ctx.beginPath();
+            ctx.moveTo(fromx, fromy);
+            ctx.lineTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(tox, toy);
+            ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+
+        function drawDim(ctx, x1, y1, x2, y2, text, isVert) {
+            ctx.strokeStyle = '#64748b';
+            ctx.fillStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.font = '10px Inter';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            if (isVert) {
+                ctx.beginPath(); ctx.moveTo(x1-3, y1); ctx.lineTo(x1+3, y1); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x2-3, y2); ctx.lineTo(x2+3, y2); ctx.stroke();
+                ctx.save();
+                ctx.translate(x1-5, (y1+y2)/2);
+                ctx.rotate(-Math.PI/2);
+                ctx.textAlign = 'center';
+                ctx.fillText(text, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.beginPath(); ctx.moveTo(x1, y1-3); ctx.lineTo(x1, y1+3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x2, y2-3); ctx.lineTo(x2, y2+3); ctx.stroke();
+                ctx.textAlign = 'center';
+                ctx.fillText(text, (x1+x2)/2, y1-5);
+            }
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>

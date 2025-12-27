@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Column Splices & Bond | RC Design Suite</title>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .viz-box { background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: flex; justify-content: center; border: 1px solid var(--border-color); }
+        svg { width: 100%; height: auto; max-width: 400px; }
+        .concrete { fill: #f1f5f9; stroke: #94a3b8; stroke-width: 2; }
+        .rebar { fill: none; stroke: #334155; stroke-width: 4; stroke-linecap: round; }
+        .dowel { fill: none; stroke: #ef4444; stroke-width: 4; stroke-linecap: round; }
+        .dim-line { stroke: #3b82f6; stroke-width: 1.5; marker-end: url(#arrow-blue); marker-start: url(#arrow-blue); }
+        .dim-text { fill: #3b82f6; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif; }
+
+        .calc-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+        }
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent);
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Splice & Bond Inputs</h2>
+            
+            <div class="section-header">Materials</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" min="17">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" min="280">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Concrete Type</label>
+                <select id="lambda">
+                    <option value="1.0">Normal Weight (1.0)</option>
+                    <option value="0.75">Lightweight (0.75)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Bar Coating ($\psi_e$)</label>
+                <select id="coating">
+                    <option value="1.0">Uncoated (1.0)</option>
+                    <option value="1.2">Epoxy - Other (1.2)</option>
+                    <option value="1.5">Epoxy - Low Cover/Spacing (1.5)</option>
+                </select>
+            </div>
+
+            <div class="section-header">Reinforcement</div>
+            <div class="form-group">
+                <label>Bar Size (Metric)</label>
+                <select id="barSize">
+                    <option value="10">10 mm</option>
+                    <option value="13">13 mm</option>
+                    <option value="16">16 mm</option>
+                    <option value="19">19 mm</option>
+                    <option value="22">22 mm</option>
+                    <option value="25" selected>25 mm</option>
+                    <option value="29">29 mm</option>
+                    <option value="32">32 mm</option>
+                </select>
+            </div>
+
+            <div class="section-header">Modification Factors</div>
+            <div class="form-group">
+                <label>Confinement</label>
+                <select id="confinement">
+                    <option value="1.0">Standard Ties</option>
+                    <option value="0.75">Spirals or Special Ties (0.75)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Excess Steel Ratio ($A_{s,req}/A_{s,prov}$)</label>
+                <input type="number" id="excessRatio" value="1.0" min="0.1" max="1.0" step="0.05">
+            </div>
+
+            <div class="section-header">Hook Details (Tension)</div>
+            <div class="form-group">
+                <label>Hook Type</label>
+                <select id="hookType">
+                    <option value="90">90° Hook</option>
+                    <option value="180">180° Hook</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Hook Modifiers</label>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 5px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--sidebar-text); font-weight: 400;">
+                        <input type="checkbox" id="hookCover" style="width: auto;"> Side Cover ≥ 65mm (0.7)
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--sidebar-text); font-weight: 400;">
+                        <input type="checkbox" id="hookTies" style="width: auto;"> Enclosed in Ties (0.8)
+                    </label>
+                </div>
+            </div>
+
+            <button class="calc-btn" onclick="calculate()">
+                <i class="fa-solid fa-calculator"></i> Calculate Lengths
+            </button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="content-area">
+        <div class="hero">
+            <h1>Column Splices & Bond</h1>
+            <p>Analyze compression development lengths ($\ell_{dc}$) and lap splice requirements for column longitudinal bars and footing dowels based on ACI 318M-11.</p>
+        </div>
+        
+        <svg style="display: none;">
+            <defs>
+                <marker id="arrow-blue" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
+                </marker>
+            </defs>
+        </svg>
+
+        <div class="calc-card">
+            <h3>1. Compression Development Length ($\ell_{dc}$)</h3>
+            <div class="viz-box">
+                <svg viewBox="0 0 400 200">
+                    <rect x="50" y="100" width="300" height="80" class="concrete" />
+                    <rect x="125" y="20" width="150" height="80" class="concrete" />
+                    <path d="M 200,40 L 200,150 L 250,150" class="dowel" />
+                    <line x1="170" y1="100" x2="170" y2="150" class="dim-line" />
+                    <text x="110" y="130" class="dim-text" id="vizLdc_val">ℓdc</text>
+                </svg>
+            </div>
+            <div class="math-block">
+                $$ \ell_{dc} = \max \left( \frac{0.02 f_y d_b}{\lambda \sqrt{f'_c}}, 0.0003 f_y d_b, 200 \text{ mm} \right) $$
+            </div>
+            <div id="ldcResults"></div>
+        </div>
+
+        <div class="calc-card">
+            <h3>2. Compression Lap Splice</h3>
+            <div class="viz-box">
+                <svg viewBox="0 0 400 250">
+                    <rect x="125" y="10" width="150" height="230" class="concrete" />
+                    <line x1="185" y1="20" x2="185" y2="180" class="rebar" />
+                    <line x1="215" y1="80" x2="215" y2="230" class="dowel" />
+                    <line x1="240" y1="80" x2="240" y2="180" class="dim-line" />
+                    <text x="250" y="135" class="dim-text" id="vizSplice_val">Lap</text>
+                </svg>
+            </div>
+            <div class="math-block" id="spliceFormula">
+                <!-- Formula changes based on fy -->
+            </div>
+            <div id="spliceResults"></div>
+        </div>
+
+        <div class="calc-card">
+            <h3>3. Tension Hook Development ($\ell_{dh}$)</h3>
+            <div class="viz-box">
+                <svg viewBox="0 0 400 200">
+                    <rect x="50" y="30" width="300" height="140" class="concrete" />
+                    <path id="vizHookPath" d="M 320,100 L 150,100 L 150,150" class="dowel" />
+                    <line id="vizLdhLine" x1="150" y1="70" x2="250" y2="70" class="dim-line" />
+                    <text x="180" y="60" class="dim-text" id="vizLdh_val">ℓdh</text>
+                </svg>
+            </div>
+            <div class="math-block">
+                $$ \ell_{dh} = \max \left( \frac{0.24 \psi_e f_y d_b}{\lambda \sqrt{f'_c}}, 8d_b, 150 \text{ mm} \right) $$
+            </div>
+            <div id="hookResults"></div>
+        </div>
+    </main>
+
+    <script>
+        const BAR_DATA = {
+            10: { d: 9.5 },
+            13: { d: 12.7 },
+            16: { d: 15.9 },
+            19: { d: 19.1 },
+            22: { d: 22.2 },
+            25: { d: 25.4 },
+            29: { d: 28.7 },
+            32: { d: 32.3 }
+        };
+
+        function calculate() {
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const lam = parseFloat(document.getElementById('lambda').value);
+            const barSize = parseInt(document.getElementById('barSize').value);
+            const psi_e = parseFloat(document.getElementById('coating').value);
+            const confinement = parseFloat(document.getElementById('confinement').value);
+            const excess = parseFloat(document.getElementById('excessRatio').value);
+
+            const db = BAR_DATA[barSize].d;
+
+            // --- 1. Development Length ---
+            const ldc1 = (0.02 * fy * db) / (lam * Math.sqrt(fc));
+            const ldc2 = 0.0003 * fy * db;
+            let ldc_basic = Math.max(ldc1, ldc2, 200);
+            
+            // Apply modification factors
+            let ldc_final = ldc_basic * confinement * excess;
+            if (ldc_final < 200) ldc_final = 200;
+
+            document.getElementById('ldcResults').innerHTML = `
+                <p>Basic $\ell_{dc}$ calculation:</p>
+                <ul>
+                    <li>Term 1: $\\frac{0.02 \\times ${fy} \\times ${db}}{${lam} \\times \\sqrt{${fc}}} = ${ldc1.toFixed(1)}$ mm</li>
+                    <li>Term 2: $0.0003 \\times ${fy} \\times ${db} = ${ldc2.toFixed(1)}$ mm</li>
+                    <li>Minimum: $200$ mm</li>
+                </ul>
+                <p>Governing Basic $\ell_{dc} = ${ldc_basic.toFixed(1)}$ mm</p>
+                <p><strong>Final $\ell_{dc}$ (with factors) = ${ldc_final.toFixed(0)} mm</strong></p>
+            `;
+
+            // --- 2. Lap Splice ---
+            let splice_len = 0;
+            let formula_tex = "";
+            
+            // ACI 318M-11 12.16.1 (Metric conversions)
+            if (fy <= 420) {
+                // 0.0005 * fy * db in Imperial is approx 0.071 * fy * db in Metric
+                splice_len = 0.071 * fy * db;
+                formula_tex = "$$ L_{splice} = 0.071 f_y d_b \\ge 300 \\text{ mm} $$";
+            } else {
+                // (0.0009 * fy - 24) * db in Imperial is approx (0.13 * fy - 24) * db in Metric
+                splice_len = (0.13 * fy - 24) * db;
+                formula_tex = "$$ L_{splice} = (0.13 f_y - 24) d_b \\ge 300 \\text{ mm} $$";
+            }
+
+            // Concrete strength factor
+            let fc_factor = 1.0;
+            if (fc < 21) {
+                fc_factor = 1.33;
+                splice_len *= 1.33;
+            }
+
+            if (splice_len < 300) splice_len = 300;
+
+            document.getElementById('spliceFormula').innerHTML = formula_tex;
+            document.getElementById('spliceResults').innerHTML = `
+                <p>Calculated Splice: ${splice_len.toFixed(1)} mm</p>
+                ${fc < 21 ? '<p style="color:var(--error)">Note: $f\'_c < 21$ MPa. Splice length increased by 33%.</p>' : ''}
+                <p><strong>Required Lap Splice = ${Math.ceil(splice_len)} mm</strong></p>
+            `;
+
+            // --- 3. Tension Hook Development ---
+            const hookTypeVal = document.getElementById('hookType').value;
+            // psi_e for hooks is 1.2 if coated, 1.0 otherwise (ACI 12.5.2)
+            const psi_e_hook = psi_e > 1.0 ? 1.2 : 1.0;
+            
+            let ldh = (0.24 * psi_e_hook * fy * db) / (lam * Math.sqrt(fc));
+            
+            // Modification factors
+            let hookFactors = 1.0;
+            if (document.getElementById('hookCover').checked) hookFactors *= 0.7;
+            if (document.getElementById('hookTies').checked) hookFactors *= 0.8;
+            ldh *= hookFactors;
+
+            const min_ldh = Math.max(150, 8 * db);
+            if (ldh < min_ldh) ldh = min_ldh;
+
+            // Detailing extension length
+            const extension = (hookTypeVal === '90') ? (12 * db) : Math.max(4 * db, 65);
+
+            document.getElementById('hookResults').innerHTML = `
+                <p>Calculated $\ell_{dh}$: ${ldh.toFixed(1)} mm</p>
+                <ul>
+                    <li>Extension Length ($L_{ext}$): <strong>${extension.toFixed(0)} mm</strong></li>
+                    <li>Modification Factors: ${hookFactors.toFixed(2)}</li>
+                </ul>
+                <p><strong>Required Hook Development $\ell_{dh} = ${Math.ceil(ldh)} mm</strong></p>
+            `;
+
+            // Update Viz
+            document.getElementById('vizLdc_val').textContent = `ℓdc = ${ldc_final.toFixed(0)}mm`;
+            document.getElementById('vizSplice_val').textContent = `Lap = ${Math.ceil(splice_len)}mm`;
+            
+            const vizHookPath = document.getElementById('vizHookPath');
+            const vizLdh_val = document.getElementById('vizLdh_val');
+            const vizLdhLine = document.getElementById('vizLdhLine');
+
+            if (hookTypeVal === '90') {
+                vizHookPath.setAttribute('d', "M 320,100 L 150,100 L 150,150");
+                vizLdhLine.setAttribute('x1', "150");
+                vizLdhLine.setAttribute('x2', "250");
+                vizLdh_val.textContent = `ℓdh = ${Math.ceil(ldh)}mm`;
+            } else {
+                vizHookPath.setAttribute('d', "M 320,100 L 150,100 A 20 20 0 0 0 150,140 L 180,140");
+                vizLdhLine.setAttribute('x1', "130");
+                vizLdhLine.setAttribute('x2', "230");
+                vizLdh_val.textContent = `ℓdh = ${Math.ceil(ldh)}mm`;
+            }
+
+            MathJax.typesetPromise();
+        }
+
+        window.onload = function() {
+            // Attach listeners to all inputs for live update
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculate);
+            });
+            calculate();
+        };
+    </script>
+</body>
+</html>

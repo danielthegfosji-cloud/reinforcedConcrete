@@ -67,8 +67,10 @@
             font-weight: 700;
             margin-left: 8px;
         }
-        .status-ok { background-color: #d1fae5; color: #065f46; }
-        .status-fail { background-color: #fee2e2; color: #991b1b; }
+        .status-box { padding: 12px; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px; font-weight: 600; margin-bottom: 10px; border: 1px solid transparent; }
+        .status-success { background-color: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .status-danger { background-color: #fee2e2; color: #991b1b; border-color: #fecaca; }
+        .status-warning { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
 
         /* 3D Modal Styles */
         #modal3d { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; flex-direction:column; align-items:center; justify-content:center; }
@@ -106,12 +108,22 @@
         <div class="input-panel">
             <h2 class="panel-title">Slab Properties</h2>
             
-            <div class="section-header">Slab Geometry</div>
+            <div class="section-header">Slab Boundary & Continuity</div>
             <div class="input-group">
-                <label>Slab Boundary Condition</label>
+                <label>Panel Location</label>
                 <select id="spanType">
                     <option value="continuous">Continuous (Interior Panel)</option>
-                    <option value="simple">Simply Supported (Corner/Isolated)</option>
+                    <option value="simple">End Span (Exterior Panel)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Discontinuous Edge Detail</label>
+                <select id="edgeCondition">
+                    <option value="1">Exterior edge unrestrained</option>
+                    <option value="2">Slab with beams between all supports</option>
+                    <option value="3" selected>Slab without beams (no edge beam)</option>
+                    <option value="4">Slab without beams (with edge beam)</option>
+                    <option value="5">Exterior edge fully restrained</option>
                 </select>
             </div>
             <div class="form-row">
@@ -132,6 +144,22 @@
                 <div class="form-col">
                     <label>Thickness $h$</label>
                     <input type="number" id="thickness" value="180" step="10">
+                </div>
+                <div class="form-col">
+                    <label>Col Height (mm)</label>
+                    <input type="number" id="colHeight" value="3000" step="100">
+                </div>
+            </div>
+
+            <div class="section-header">Beam Geometry (Optional)</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Beam Width $b_w$ (mm)</label>
+                    <input type="number" id="beamBw" value="0" step="10">
+                </div>
+                <div class="form-col">
+                    <label>Beam Depth $h_b$ (mm)</label>
+                    <input type="number" id="beamH" value="0" step="10">
                 </div>
             </div>
 
@@ -194,14 +222,6 @@
                 </div>
             </div>
 
-            <div class="input-group">
-                <label>Concrete Cover ($c_c$)</label>
-                <div class="input-wrapper">
-                    <input type="number" id="cover" value="20" step="5">
-                    <span class="unit">mm</span>
-                </div>
-            </div>
-
             <button class="btn-calc" onclick="calculateDesign()">Calculate & Render</button>
         </div>
     </nav>
@@ -245,108 +265,195 @@
 
         function calculateDesign() {
             // 1. Get Inputs
-            const type = document.getElementById('spanType').value;
+            const spanType = document.getElementById('spanType').value;
+            const edgeCond = parseInt(document.getElementById('edgeCondition').value);
             const l1 = parseFloat(document.getElementById('l1').value); // Long Span
             const l2 = parseFloat(document.getElementById('l2').value); // Short Span
             const col = parseFloat(document.getElementById('colSize').value);
             const h = parseFloat(document.getElementById('thickness').value);
+            const colHeight = parseFloat(document.getElementById('colHeight').value);
             const fc = parseFloat(document.getElementById('fc').value);
             const fy = parseFloat(document.getElementById('fy').value);
             const w_sdl = parseFloat(document.getElementById('wd').value);
             const w_l = parseFloat(document.getElementById('wl').value);
             const db = parseFloat(document.getElementById('barSize').value);
             const cover = parseFloat(document.getElementById('cover').value);
+            const beamBw = parseFloat(document.getElementById('beamBw').value) || 0;
+            const beamH = parseFloat(document.getElementById('beamH').value) || 0;
 
-            const out = document.getElementById('output');
-            out.innerHTML = ""; // Clear previous results
-
-            // --- Preliminary Calculations ---
-            
-            // Clear Span (ln) for L1
-            const ln_l1 = l1 - col;
-            
-            // Effective Depth (d) - Avg for two way, usually take larger depth for primary, smaller for secondary
-            // Here assuming average d for calculation simplicity in module
-            const d = h - cover - db; 
-
-            // Loads
+            // 2. Loads
             const w_self = (h / 1000) * CONCRETE_DENSITY; // kN/m^2
             const w_d_total = w_sdl + w_self;
             const w_u = 1.2 * w_d_total + 1.6 * w_l; // Factored Load kN/m^2
-
-            // --- L1 Direction Analysis (Span = L1, Width = L2) ---
-            const ln1 = l1 - col;
-            const ln1_m = ln1 / 1000;
-            const l2_m = l2 / 1000;
-            const Mo1 = (w_u * l2_m * Math.pow(ln1_m, 2)) / 8; // kNm
-
-            // --- CODE CHECKS ---
-
-            // 1. Thickness Check (ACI 9.5.3 / Metric Equiv)
-            // Simply supported approx ln/20, Continuous approx ln/33
-            const ln_max = Math.max(l1, l2) - col;
-            let h_min;
-            if (type === 'simple') {
-                h_min = ln_max / 20;
-            } else {
-                h_min = ln_max / 33; 
-            }
-            
-            // Fy correction factor for deflection control
-            const fy_factor = (0.8 + (fy / 1400)); // Simplified ACI Metric factor
-            // Not strictly applying Eq 9-12/13 for brevity, using table logic approximation
-            
-            let thickCheckHTML = "";
-            if (h >= h_min) {
-                thickCheckHTML = `<span class="status-badge status-ok">OK</span> Provided ${h}mm $\\ge$ Min ${h_min.toFixed(0)}mm`;
-            } else {
-                thickCheckHTML = `<span class="status-badge status-fail">FAIL</span> Thickness too small (Min ${h_min.toFixed(0)}mm)`;
-            }
-
             const phi = 0.9;
+            const d = h - cover - db; 
+            const Ec = 4700 * Math.sqrt(fc);
 
-            function getSpacing(Moment, width_m, d_eff) {
-                if (Moment <= 0) return {spacing: 0, area: 0, status: "N/A", s_max: 0};
-                let As_total = (Moment * 1000000) / (phi * fy * 0.9 * d_eff);
-                let min_steel = 0.0018 * (width_m * 1000) * h;
-                if (As_total < min_steel) As_total = min_steel;
-                const A_bar = (Math.PI * Math.pow(db, 2)) / 4;
-                let s = (width_m * 1000) / (As_total / A_bar);
-                const s_max = Math.min(2 * h, 450);
-                if (s > s_max) s = s_max;
+            // 3. DDM Limitations Check (ACI 13.6.1)
+            const l_ratio_check = Math.max(l1, l2) / Math.min(l1, l2);
+            const load_ratio_check = w_l / w_d_total;
+            const isDDMValid = l_ratio_check <= 2.0 && load_ratio_check <= 2.0;
+            let stiffness_details = { l1: null, l2: null };
+
+            // 4. Analysis Helper (DDM or EFM)
+            function analyzeDirection(span_l1, span_l2, alpha_f, dirKey) {
+                const ln = span_l1 - col;
+                const ln_m = ln / 1000;
+                const l2_m = span_l2 / 1000;
+                const Mo = (w_u * l2_m * Math.pow(ln_m, 2)) / 8;
+                let method_used = "DDM";
+                // Table 16.2 Distribution
+                let neg_factor = 0.65, pos_factor = 0.35, ext_neg_factor = 0;
+                if (spanType === 'simple') {
+                    const factors = {
+                        1: [0.75, 0.63, 0],
+                        2: [0.70, 0.57, 0.16],
+                        3: [0.70, 0.52, 0.26],
+                        4: [0.70, 0.50, 0.30],
+                        5: [0.65, 0.35, 0.65]
+                    };
+                    [neg_factor, pos_factor, ext_neg_factor] = factors[edgeCond];
+
+                    // EFM Logic if DDM is invalid (Chapter 17)
+                    if (!isDDMValid) {
+                        method_used = "EFM";
+                        const Is = (span_l2 * Math.pow(h, 3)) / 12;
+                        const Ic = (Math.pow(col, 4)) / 12;
+                        const Ks = 4 * Ec * Is / span_l1;
+                        const Kc = 4 * Ec * Ic / colHeight;
+                        const C = (1 - 0.63 * h / col) * (Math.pow(h, 3) * col / 3);
+                        const Kt = (9 * Ec * C) / (span_l2 * Math.pow(1 - col/span_l2, 3));
+                        const Kec = (2 * Kc * 2 * Kt) / (2 * Kc + 2 * Kt);
+                        const alpha_ec = Kec / Ks;
+                        ext_neg_factor = 0.65 * (alpha_ec / (1 + alpha_ec));
+                        pos_factor = 0.63 - 0.28 * (alpha_ec / (1 + alpha_ec));
+                        neg_factor = 0.75 - 0.10 * (alpha_ec / (1 + alpha_ec));
+                        stiffness_details[dirKey] = { Ks, Kc, Kt, Kec, alpha_ec };
+                    }
+                }
+
+                const M_neg = neg_factor * Mo;
+                const M_pos = pos_factor * Mo;
+                const M_ext_neg = ext_neg_factor * Mo;
+
+                // CS Percentages (Equations from Chapter 16.8)
+                const alpha_ratio = Math.min(alpha_f * span_l2 / span_l1, 1.0);
+                const l_ratio = span_l2 / span_l1;
                 
-                const clear_s = s - db;
-                const min_clear_s = Math.max(db, 25);
-                let status = clear_s < min_clear_s ? "Congested" : "OK";
-                return { spacing: Math.floor(s), area: As_total, status: status, s_max: s_max };
+                const pct_int_neg = 75 + 30 * alpha_ratio * (1 - l_ratio);
+                const pct_pos = 60 + 30 * alpha_ratio * (1.5 - l_ratio);
+                // Simplified beta_t = 0 for flat plate, 2.5 for stiff edge beam
+                const beta_t = (edgeCond === 2 || edgeCond === 4) ? 2.5 : 0;
+                const pct_ext_neg = 100 - 10 * beta_t + 12 * alpha_ratio * (1 - l_ratio);
+
+                return {
+                    Mo, M_neg, M_pos, M_ext_neg,
+                    cs_neg: pct_int_neg / 100,
+                    cs_pos: pct_pos / 100,
+                    cs_ext_neg: pct_ext_neg / 100,
+                    ln,
+                    method: method_used
+                };
             }
 
-            // L1 Moments
-            let M1_neg = (type === 'continuous') ? 0.65 * Mo1 : 0;
-            let M1_pos = (type === 'continuous') ? 0.35 * Mo1 : Mo1;
-            const M1_neg_CS = M1_neg * 0.75;
-            const M1_pos_CS = M1_pos * 0.60;
-            const M1_pos_MS = M1_pos * 0.40;
+            // Calculate alpha_f (Simplified)
+            const alpha_f = (beamBw > 0) ? (beamBw * Math.pow(beamH, 3)) / (l2 * Math.pow(h, 3)) : 0;
+            const res1 = analyzeDirection(l1, l2, alpha_f, 'l1');
+            const res2 = analyzeDirection(l2, l1, alpha_f, 'l2');
 
-            const design1_CS_Pos = getSpacing(M1_pos_CS, l2_m / 2, d);
-            const design1_MS_Pos = getSpacing(M1_pos_MS, l2_m / 2, d);
-            const design1_CS_Neg = (type === 'continuous') ? getSpacing(M1_neg_CS, l2_m / 2, d) : {spacing: 0, area:0};
+            // 5. Reinforcement Calculation
+            function getSpacing(M, width_mm, d_eff) {
+                if (M <= 0) return { spacing: 450, area: 0 };
+                let As = (M * 1e6) / (phi * fy * 0.9 * d_eff);
+                const As_min = 0.0018 * width_mm * h;
+                As = Math.max(As, As_min);
+                const s = Math.min(450, 2 * h, (width_mm * (Math.PI * db**2 / 4)) / As);
+                return { spacing: Math.floor(s), area: As };
+            }
 
-            // --- L2 Direction Analysis (Span = L2, Width = L1) ---
-            const ln2 = l2 - col;
-            const ln2_m = ln2 / 1000;
-            const l1_m = l1 / 1000;
-            const Mo2 = (w_u * l1_m * Math.pow(ln2_m, 2)) / 8;
+            const d1 = {
+                cs_pos: getSpacing(res1.M_pos * res1.cs_pos, l2/2, d).spacing,
+                ms_pos: getSpacing(res1.M_pos * (1 - res1.cs_pos), l2/2, d).spacing,
+                cs_neg: getSpacing(res1.M_neg * res1.cs_neg, l2/2, d).spacing
+            };
+            const d2 = {
+                cs_pos: getSpacing(res2.M_pos * res2.cs_pos, l1/2, d - db).spacing,
+                ms_pos: getSpacing(res2.M_pos * (1 - res2.cs_pos), l1/2, d - db).spacing,
+                cs_neg: getSpacing(res2.M_neg * res2.cs_neg, l1/2, d - db).spacing
+            };
 
-            let M2_neg = (type === 'continuous') ? 0.65 * Mo2 : 0;
-            let M2_pos = (type === 'continuous') ? 0.35 * Mo2 : Mo2;
-            const M2_neg_CS = M2_neg * 0.75;
-            const M2_pos_CS = M2_pos * 0.60;
-            const M2_pos_MS = M2_pos * 0.40;
+            // 6. Checks
+            const ln_max = Math.max(l1, l2) - col;
+            const h_min = (spanType === 'simple') ? ln_max / 20 : ln_max / 33;
 
-            const design2_CS_Pos = getSpacing(M2_pos_CS, l1_m / 2, d - db);
-            const design2_MS_Pos = getSpacing(M2_pos_MS, l1_m / 2, d - db);
-            const design2_CS_Neg = (type === 'continuous') ? getSpacing(M2_neg_CS, l1_m / 2, d - db) : {spacing: 0, area:0};
+            const Vu_1way = w_u * (res1.ln / 2000 - d / 1000);
+            const phiVc_1way = 0.75 * 0.17 * Math.sqrt(fc) * 1000 * d / 1000;
+
+            const bo = 4 * (col + d);
+            const Vu_punch = w_u * (l1 * l2 / 1e6 - Math.pow(col + d, 2) / 1e6);
+            const phiVc_punch = 0.75 * 0.33 * Math.sqrt(fc) * bo * d / 1000;
+
+            // Deflection Check (Simplified Elastic)
+            const Ig = (1000 * Math.pow(h, 3)) / 12;
+            const w_service = w_d_total + w_l;
+            const delta_elastic = (5 * w_service * Math.pow(res1.ln, 4)) / (384 * Ec * Ig);
+            const delta_allow = res1.ln / 360;
+
+            // 7. Render Output
+            const out = document.getElementById('output');
+            out.innerHTML = `
+                <div class="result-block">
+                    <div class="result-header"><i class="fa-solid fa-star"></i> Critical Design Results</div>
+                    <div class="status-box ${isDDMValid ? 'status-success' : 'status-warning'}">
+                        <i class="fa-solid ${isDDMValid ? 'fa-check-circle' : 'fa-triangle-exclamation'}"></i>
+                        <div>Method: ${isDDMValid ? 'Direct Design Method (DDM)' : 'Equivalent Frame Method (EFM)'} ${!isDDMValid ? '<br><small style="font-weight:400;">DDM limits exceeded (L/S ratio or L/D ratio). Analysis performed using EFM stiffness factors.</small>' : ''}</div>
+                    </div>
+                    <div class="status-box ${h >= h_min ? 'status-success' : 'status-danger'}">
+                        <i class="fa-solid ${h >= h_min ? 'fa-check-circle' : 'fa-circle-xmark'}"></i>
+                        <div>Thickness: Provided ${h}mm (Min Req: ${h_min.toFixed(0)}mm)${h < h_min ? '<br><small style="font-weight:400;">Recommendation: Increase slab thickness to meet ACI minimum requirements for deflection control.</small>' : ''}</div>
+                    </div>
+                    <div class="status-box ${delta_elastic < delta_allow ? 'status-success' : 'status-warning'}">
+                        <i class="fa-solid ${delta_elastic < delta_allow ? 'fa-check-circle' : 'fa-triangle-exclamation'}"></i>
+                        <div>Deflection: $\Delta_{calc} = ${delta_elastic.toFixed(2)}mm$ (Limit $L/360 = ${delta_allow.toFixed(2)}mm$)${delta_elastic >= delta_allow ? '<br><small style="font-weight:400;">Recommendation: Increase slab thickness or concrete strength ($f\'_c$) to reduce elastic deflection.</small>' : ''}</div>
+                    </div>
+                    <div class="status-box ${Vu_punch < phiVc_punch ? 'status-success' : 'status-danger'}">
+                        <i class="fa-solid ${Vu_punch < phiVc_punch ? 'fa-check-circle' : 'fa-circle-xmark'}"></i>
+                        <div>Punching Shear: $V_u = ${Vu_punch.toFixed(1)}kN$ vs $\phi V_c = ${phiVc_punch.toFixed(1)}kN$${Vu_punch >= phiVc_punch ? '<br><small style="font-weight:400;">Recommendation: Increase slab thickness, column size, concrete strength, or use shear reinforcement (studs/shearheads).</small>' : ''}</div>
+                    </div>
+                    <div class="status-box ${Vu_1way < phiVc_1way ? 'status-success' : 'status-danger'}">
+                        <i class="fa-solid ${Vu_1way < phiVc_1way ? 'fa-check-circle' : 'fa-circle-xmark'}"></i>
+                        <div>One-Way Shear: $V_u = ${Vu_1way.toFixed(1)}kN/m$ vs $\phi V_c = ${phiVc_1way.toFixed(1)}kN/m$${Vu_1way >= phiVc_1way ? '<br><small style="font-weight:400;">Recommendation: Increase slab thickness or concrete strength ($f\'_c$).</small>' : ''}</div>
+                    </div>
+                </div>
+
+                <div class="result-block">
+                    <div class="result-header"><i class="fa-solid fa-calculator"></i> Detailed Analysis</div>
+                    <div class="latex-row">
+                        $$ w_u = 1.2(${w_d_total.toFixed(2)}) + 1.6(${w_l}) = ${w_u.toFixed(2)} \\text{ kN/m}^2 $$
+                        $$ M_{o1} = \\frac{w_u l_2 l_{n1}^2}{8} = ${res1.Mo.toFixed(1)} \\text{ kNm} $$
+                        $$ M_{o2} = \\frac{w_u l_1 l_{n2}^2}{8} = ${res2.Mo.toFixed(1)} \\text{ kNm} $$
+                    </div>
+                    ${!isDDMValid && stiffness_details.l1 ? `
+                    <p><strong>EFM Stiffness Parameters ($L_1$):</strong></p>
+                    <div class="latex-row">
+                        $$ K_s = ${stiffness_details.l1.Ks.toExponential(2)}, \\quad K_{ec} = ${stiffness_details.l1.Kec.toExponential(2)} $$
+                        $$ \\alpha_{ec} = \\frac{K_{ec}}{K_s} = ${stiffness_details.l1.alpha_ec.toFixed(2)} $$
+                    </div>
+                    ` : ''}
+                    <p><strong>Reinforcement Summary:</strong></p>
+                    <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <tr style="background:#f8fafc; border-bottom:2px solid #eee;">
+                            <th style="padding:8px; text-align:left;">Strip</th><th style="padding:8px;">Moment</th><th style="padding:8px;">Spacing</th>
+                        </tr>
+                        <tr><td style="padding:8px;">L1 Col Strip (-M)</td><td style="padding:8px; text-align:center;">${(res1.M_neg * res1.cs_neg).toFixed(1)} kNm</td><td style="padding:8px; text-align:center;">@ ${d1.cs_neg} mm</td></tr>
+                        <tr><td style="padding:8px;">L1 Col Strip (+M)</td><td style="padding:8px; text-align:center;">${(res1.M_pos * res1.cs_pos).toFixed(1)} kNm</td><td style="padding:8px; text-align:center;">@ ${d1.cs_pos} mm</td></tr>
+                        <tr><td style="padding:8px;">L1 Mid Strip (+M)</td><td style="padding:8px; text-align:center;">${(res1.M_pos * (1-res1.cs_pos)).toFixed(1)} kNm</td><td style="padding:8px; text-align:center;">@ ${d1.ms_pos} mm</td></tr>
+                        <tr><td style="padding:8px;">L2 Col Strip (-M)</td><td style="padding:8px; text-align:center;">${(res2.M_neg * res2.cs_neg).toFixed(1)} kNm</td><td style="padding:8px; text-align:center;">@ ${d2.cs_neg} mm</td></tr>
+                        <tr><td style="padding:8px;">L2 Col Strip (+M)</td><td style="padding:8px; text-align:center;">${(res2.M_pos * res2.cs_pos).toFixed(1)} kNm</td><td style="padding:8px; text-align:center;">@ ${d2.cs_pos} mm</td></tr>
+                        <tr><td style="padding:8px;">L2 Mid Strip (+M)</td><td style="padding:8px; text-align:center;">${(res2.M_pos * (1-res2.cs_pos)).toFixed(1)} kNm</td><td style="padding:8px; text-align:center;">@ ${d2.ms_pos} mm</td></tr>
+                    </table>
+                </div>
+            `;
 
             const filters = {
                 showPos: document.getElementById('showPos').checked,
@@ -355,159 +462,13 @@
                 showL2: document.getElementById('showL2').checked
             };
 
-            // Store data for 3D
-            lastDesignData = {
-                l1, l2, col, h, fc, fy, db, cover, type,
-                d1: { cs_pos: design1_CS_Pos.spacing, ms_pos: design1_MS_Pos.spacing, cs_neg: design1_CS_Neg.spacing },
-                d2: { cs_pos: design2_CS_Pos.spacing, ms_pos: design2_MS_Pos.spacing, cs_neg: design2_CS_Neg.spacing },
-                filters
-            };
+            lastDesignData = { l1, l2, col, h, fc, fy, db, cover, type: spanType, d1, d2, filters };
 
-            // 3. Shear Check (One Way)
-            // Vu at d from face
-            const Vu_1way = w_u * (ln1_m / 2 - d/1000); // kN per m width
-            // Vc = 0.17 * lambda * sqrt(fc) * b * d (SI Metric)
-            // lambda = 1 (normal weight)
-            const phi_v = 0.75;
-            const Vc_1way = 0.17 * Math.sqrt(fc) * 1000 * d / 1000; // kN
-            const phiVc = phi_v * Vc_1way;
-            
-            let shearStatus = (Vu_1way < phiVc) ? 
-                `<span class="status-badge status-ok">OK</span>` : 
-                `<span class="status-badge status-fail">FAIL</span>`;
-
-            // 4. Deflection Check (Immediate)
-            // Simplified 5/384 * w l^4 / EI
-            // E for concrete = 4700 sqrt(fc)
-            const Ec = 4700 * Math.sqrt(fc);
-            const Ig = (1000 * Math.pow(h, 3)) / 12; // per meter
-            // Service Load
-            const w_service = w_d_total + w_l; // kN/m
-            // Delta in mm
-            const delta_elastic = (5 * w_service * Math.pow(ln1, 4)) / (384 * Ec * Ig) * 1000; // factors adjust units approx
-            // Note: This is simplified uncracked. 
-            // Allowable L/360
-            const delta_allow = ln_max / 360;
-            
-            let defStatus = (delta_elastic < delta_allow) ?
-                `<span class="status-badge status-ok">OK</span>` :
-                `<span class="status-badge status-warning">CHECK</span>`;
-
-
-            // --- RENDER OUTPUT ---
-            
-            let html = `
-                <div class="result-item"><strong>1. Geometry & Loads:</strong><br>
-                Clear Span ($l_n$): ${ln_l1.toFixed(0)} mm<br>
-                Effective Depth ($d$): ${d.toFixed(1)} mm<br>
-                Factored Load ($w_u$): ${w_u.toFixed(2)} kN/m²<br>
-                Total Static Moment ($M_{o1}$): ${Mo1.toFixed(1)} kNm
-                </div>
-
-                <div class="result-item"><strong>2. Thickness Check:</strong><br>
-                Provided: ${h} mm ${thickCheckHTML}
-                </div>
-
-                <div class="result-item"><strong>3. Flexural Design (Reinforcement):</strong><br>
-                <p style="font-weight:600; margin-top:10px;">Direction $L_1$ (Span=${l1}mm):</p>
-                <table style="width:100%; border-collapse: collapse; margin-top:5px; font-size:0.9rem;">
-                    <tr style="border-bottom:1px solid #ddd; text-align:left;">
-                        <th>Location</th>
-                        <th>Moment (kNm)</th>
-                        <th>Req. $A_s$ (mm²)</th>
-                        <th>Detailing (${db}mm bars)</th>
-                    </tr>
-                    <tr>
-                        <td>Col Strip (+M)</td>
-                        <td>${M1_pos_CS.toFixed(1)}</td>
-                        <td>${design1_CS_Pos.area.toFixed(0)}</td>
-                        <td><strong>@ ${design1_CS_Pos.spacing} mm</strong></td>
-                    </tr>
-                    <tr>
-                        <td>Mid Strip (+M)</td>
-                        <td>${M1_pos_MS.toFixed(1)}</td>
-                        <td>${design1_MS_Pos.area.toFixed(0)}</td>
-                        <td><strong>@ ${design1_MS_Pos.spacing} mm</strong></td>
-                    </tr>
-                    ${type === 'continuous' ? `
-                    <tr>
-                        <td>Col Strip (-M)</td>
-                        <td>${M1_neg_CS.toFixed(1)}</td>
-                        <td>${design1_CS_Neg.area.toFixed(0)}</td>
-                        <td><strong>@ ${design1_CS_Neg.spacing} mm</strong></td>
-                    </tr>` : ''}
-                </table>
-
-                <p style="font-weight:600; margin-top:10px;">Direction $L_2$ (Span=${l2}mm):</p>
-                <table style="width:100%; border-collapse: collapse; margin-top:5px; font-size:0.9rem;">
-                    <tr style="border-bottom:1px solid #ddd; text-align:left;">
-                        <th>Location</th>
-                        <th>Moment (kNm)</th>
-                        <th>Req. $A_s$ (mm²)</th>
-                        <th>Detailing (${db}mm bars)</th>
-                    </tr>
-                    <tr>
-                        <td>Col Strip (+M)</td>
-                        <td>${M2_pos_CS.toFixed(1)}</td>
-                        <td>${design2_CS_Pos.area.toFixed(0)}</td>
-                        <td><strong>@ ${design2_CS_Pos.spacing} mm</strong></td>
-                    </tr>
-                    <tr>
-                        <td>Mid Strip (+M)</td>
-                        <td>${M2_pos_MS.toFixed(1)}</td>
-                        <td>${design2_MS_Pos.area.toFixed(0)}</td>
-                        <td><strong>@ ${design2_MS_Pos.spacing} mm</strong></td>
-                    </tr>
-                    ${type === 'continuous' ? `
-                    <tr>
-                        <td>Col Strip (-M)</td>
-                        <td>${M2_neg_CS.toFixed(1)}</td>
-                        <td>${design2_CS_Neg.area.toFixed(0)}</td>
-                        <td><strong>@ ${design2_CS_Neg.spacing} mm</strong></td>
-                    </tr>` : ''}
-                </table>
-                <small style="color:#64748b;">Max Spacing Limit: ${Math.min(2*h, 450).toFixed(0)} mm applied.</small>
-                </div>
-
-                <div class="result-item"><strong>4. Shear Check (One-Way):</strong><br>
-                $V_u$ (at distance d): ${Vu_1way.toFixed(1)} kN/m<br>
-                Capacity $\\phi V_c$: ${phiVc.toFixed(1)} kN/m<br>
-                Status: ${shearStatus}
-                </div>
-
-                <div class="result-item"><strong>5. Deflection (Elastic Uncracked):</strong><br>
-                Calculated $\\Delta$: ${delta_elastic.toFixed(1)} mm<br>
-                Limit ($L/360$): ${delta_allow.toFixed(1)} mm<br>
-                Status: ${defStatus}
-                </div>
-
-                <div class="result-item">
-                    <strong>6. Reinforcement Schedule:</strong><br>
-                    <table style="width:100%; border-collapse:collapse; font-size:0.9rem; margin-top:10px;">
-                        <thead>
-                            <tr style="background:#f8fafc; border-bottom:2px solid #eee;"><th style="padding:8px; text-align:left;">Location</th><th style="padding:8px; text-align:left;">Bar Size</th><th style="padding:8px; text-align:left;">Spacing</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L1 Col Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design1_CS_Pos.spacing} mm</td></tr>
-                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L1 Mid Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design1_MS_Pos.spacing} mm</td></tr>
-                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L2 Col Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design2_CS_Pos.spacing} mm</td></tr>
-                            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">L2 Mid Strip (+M)</td><td style="padding:8px;">${db} mm</td><td style="padding:8px;">@ ${design2_MS_Pos.spacing} mm</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            `;
-            
-            out.innerHTML = html;
             if (window.MathJax && MathJax.typesetPromise) {
                 MathJax.typesetPromise();
             }
 
-            // --- DRAW CANVAS ---
-            drawSlab(l1, l2, col, type, 
-                { cs_pos: design1_CS_Pos.spacing, ms_pos: design1_MS_Pos.spacing, cs_neg: design1_CS_Neg.spacing },
-                { cs_pos: design2_CS_Pos.spacing, ms_pos: design2_MS_Pos.spacing, cs_neg: design2_CS_Neg.spacing },
-                filters, db
-            );
+            drawSlab(l1, l2, col, spanType, d1, d2, filters, db);
         }
 
         function drawSlab(l1, l2, col, type, d1, d2, filters, db) {
@@ -802,6 +763,10 @@
             if (window.MathJax && MathJax.typeset) {
                 MathJax.typeset();
             }
+            // Attach listeners to all inputs for live update
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculateDesign);
+            });
             calculateDesign();
         };
 

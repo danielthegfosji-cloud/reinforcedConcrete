@@ -615,6 +615,14 @@
             ctx.textAlign = 'center';
             ctx.fillText("Design Failed - Check Inputs", canvas.width/2, canvas.height/2);
         }
+
+        // Initialize
+        window.onload = function() {
+            // Attach listeners to all inputs for live update
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculateSlab);
+            });
+        };
     </script>
 </body>
 </html>

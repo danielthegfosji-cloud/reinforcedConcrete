@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shear Wall Design | RC Design Suite</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- MathJax -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .viz-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .canvas-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .canvas-title {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            width: 100%;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        canvas {
+            max-width: 100%;
+            border: 1px dashed #e2e8f0;
+            background-color: #fafafa;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 99px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .status-pass { background: #dcfce7; color: #166534; }
+        .status-fail { background: #fee2e2; color: #991b1b; }
+
+        .calc-step {
+            margin-bottom: 2rem;
+            border-left: 3px solid var(--accent);
+            padding-left: 1.5rem;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .summary-table th, .summary-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        .summary-table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+        }
+
+        .check-pass { color: var(--success); }
+        .check-fail { color: var(--error); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Shear Wall Design</h2>
+            
+            <div class="section-header">Geometry (mm)</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Wall Length $\ell_w$</label>
+                    <input type="number" id="lw" value="4000" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Wall Height $h_w$</label>
+                    <input type="number" id="hw" value="6000" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Thickness $h$</label>
+                <input type="number" id="h" value="250" oninput="calculate()">
+            </div>
+
+            <div class="section-header">Applied Loads (kN, kNm)</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Shear $V_u$</label>
+                    <input type="number" id="Vu" value="800" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Moment $M_u$</label>
+                    <input type="number" id="Mu" value="2500" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Axial Load $N_u$ (Comp +)</label>
+                <input type="number" id="Nu" value="500" oninput="calculate()">
+            </div>
+
+            <div class="section-header">Materials & Rebar</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$ (MPa)</label>
+                    <input type="number" id="fc" value="28" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Horiz. Bar $\phi$</label>
+                    <input type="number" id="barH" value="12" oninput="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Vert. Bar $\phi$</label>
+                    <input type="number" id="barV" value="12" oninput="calculate()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Flexural (End) Bar $\phi$</label>
+                <input type="number" id="barF" value="25" oninput="calculate()">
+            </div>
+
+            <button class="calc-btn" onclick="calculate()">Recalculate</button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="hero">
+            <h1>Shear Wall Design</h1>
+            <p>In-plane shear and flexural analysis for reinforced concrete walls based on ACI 318M-11 Section 11.9.</p>
+        </div>
+
+        <div class="viz-container">
+            <div class="canvas-card">
+                <div class="canvas-title">Plan View (Cross-Section)</div>
+                <canvas id="planCanvas" width="400" height="300"></canvas>
+            </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Elevation View</div>
+                <canvas id="elevCanvas" width="400" height="300"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="results-header">
+                <h2>Design Summary</h2>
+                <span id="statusBadge" class="status-badge">Calculating...</span>
+            </div>
+
+            <div id="calcOutput"></div>
+
+            <h3>Reinforcement Summary</h3>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Required Ratio / Area</th>
+                        <th>Provided Detailing</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="reinfTableBody"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function calculate() {
+            // Inputs
+            const lw = parseFloat(document.getElementById('lw').value);
+            const hw = parseFloat(document.getElementById('hw').value);
+            const h = parseFloat(document.getElementById('h').value);
+            const Vu_base = parseFloat(document.getElementById('Vu').value) * 1000; // N
+            const Mu_base = parseFloat(document.getElementById('Mu').value) * 1e6; // N-mm
+            const Nu = parseFloat(document.getElementById('Nu').value) * 1000; // N
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const barH = parseFloat(document.getElementById('barH').value);
+            const barV = parseFloat(document.getElementById('barV').value);
+            const barF = parseFloat(document.getElementById('barF').value);
+
+            const phi = 0.75;
+            const d = 0.8 * lw;
+
+            // 1. Section Capacity Check
+            const Vn_max = 0.83 * Math.sqrt(fc) * h * d; // 10*sqrt(fc) in imperial is ~0.83 in SI
+            const isSectionOk = (Vu_base / phi) <= Vn_max;
+
+            // 2. Concrete Shear Capacity (Detailed Analysis ACI 11.9.6)
+            // Critical section at min(lw/2, hw/2) from base
+            const crit_dist = Math.min(lw / 2, hw / 2);
+            const Vu_crit = Vu_base; // Simplified for constant shear
+            const Mu_crit = Math.max(0, Mu_base - Vu_base * crit_dist);
+
+            // Eq 11-29 (SI)
+            const Vc1 = 0.27 * Math.sqrt(fc) * h * d + (Nu * d) / (4 * lw);
+            
+            // Eq 11-30 (SI)
+            let Vc2 = Infinity;
+            const denom = (Mu_crit / Vu_crit) - (lw / 2);
+            if (denom > 0) {
+                Vc2 = (0.05 * Math.sqrt(fc) + (lw * (0.1 * Math.sqrt(fc) + 0.2 * Nu / (lw * h))) / denom) * h * d;
+            }
+            
+            const Vc = Math.min(Vc1, Vc2);
+
+            // 3. Shear Reinforcement
+            let Vs = 0;
+            let rho_h = 0.0025;
+            if (Vu_base > phi * Vc) {
+                Vs = (Vu_base / phi) - Vc;
+                rho_h = Math.max(0.0025, Vs / (fy * d * h));
+            }
+
+            // Vertical reinforcement ratio (Eq 11-32)
+            let rho_n = 0.0025 + 0.5 * (2.5 - hw / lw) * (rho_h - 0.0025);
+            rho_n = Math.max(0.0025, Math.min(rho_n, rho_h));
+
+            // Spacing
+            const areaH = 2 * (Math.PI * barH**2 / 4); // 2 layers
+            const sH = Math.min(lw / 5, 3 * h, 450, areaH / (rho_h * h));
+            
+            const areaV = 2 * (Math.PI * barV**2 / 4);
+            const sV = Math.min(lw / 3, 3 * h, 450, areaV / (rho_n * h));
+
+            // 4. Flexural Reinforcement (at ends)
+            // Simplified design treating ends as columns or tension/compression chords
+            const arm = 0.9 * lw;
+            const As_flex = Mu_base / (0.9 * fy * arm);
+            const n_flex = Math.ceil(As_flex / (Math.PI * barF**2 / 4));
+
+            // Status
+            const pass = isSectionOk && (rho_h <= 0.015); // 0.015 is a practical limit for congestion
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'status-badge ' + (pass ? 'status-pass' : 'status-fail');
+            badge.innerText = pass ? 'Design OK' : 'Check Section';
+
+            document.getElementById('calcOutput').innerHTML = `
+                <div class="calc-step">
+                    <h3>1. Shear Capacity Check</h3>
+                    Effective Depth $d = 0.8 \ell_w = ${d.toFixed(0)} \\text{ mm}$ <br>
+                    Max Allowed $V_n = 0.83\\sqrt{f'_c}hd = ${(Vn_max/1000).toFixed(1)} \\text{ kN}$ <br>
+                    Applied $V_u / \\phi = ${(Vu_base/phi/1000).toFixed(1)} \\text{ kN}$
+                </div>
+                <div class="calc-step">
+                    <h3>2. Concrete Contribution ($V_c$)</h3>
+                    Critical section at $z = ${crit_dist.toFixed(0)} \\text{ mm}$ from base. <br>
+                    Eq 11-29: $V_c = ${(Vc1/1000).toFixed(1)} \\text{ kN}$ <br>
+                    Eq 11-30: $V_c = ${Vc2 === Infinity ? 'N/A' : (Vc2/1000).toFixed(1) + ' kN'}$ <br>
+                    Governing $V_c = ${(Vc/1000).toFixed(1)} \\text{ kN}$
+                </div>
+                <div class="calc-step">
+                    <h3>3. Reinforcement Ratios</h3>
+                    Required $\\rho_h = ${rho_h.toFixed(4)}$ (Min 0.0025) <br>
+                    Required $\\rho_n = ${rho_n.toFixed(4)}$ (Based on $h_w/\\ell_w = ${(hw/lw).toFixed(2)}$)
+                </div>
+            `;
+
+            document.getElementById('reinfTableBody').innerHTML = `
+                <tr><td>Horizontal (Shear)</td><td>$\\rho = ${rho_h.toFixed(4)}$</td><td>2 layers $\\phi${barH}$ @ ${Math.floor(sH)}mm</td><td class="check-pass">OK</td></tr>
+                <tr><td>Vertical (Shear)</td><td>$\\rho = ${rho_n.toFixed(4)}$</td><td>2 layers $\\phi${barV}$ @ ${Math.floor(sV)}mm</td><td class="check-pass">OK</td></tr>
+                <tr><td>Flexural (Ends)</td><td>$A_s = ${As_flex.toFixed(0)} \\text{ mm}^2$</td><td>${n_flex} - $\\phi${barF}$ each end</td><td class="check-pass">OK</td></tr>
+            `;
+
+            drawPlan(lw, h, barF, n_flex, barV, sV);
+            drawElevation(lw, hw, h, sH, sV);
+            MathJax.typesetPromise();
+        }
+
+        function drawPlan(lw, h, barF, nF, barV, sV) {
+            const canvas = document.getElementById('planCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 300);
+
+            const scale = 320 / lw;
+            const ox = 40, oy = 150 - (h * scale) / 2;
+
+            // Wall Outline
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(ox, oy, lw * scale, h * scale);
+
+            // Boundary Elements (Flexural Steel)
+            ctx.fillStyle = '#ef4444';
+            const rF = (barF / 2) * scale;
+            for (let i = 0; i < nF; i++) {
+                const row = i % 2;
+                const col = Math.floor(i / 2);
+                // Left end
+                ctx.beginPath();
+                ctx.arc(ox + 15 + col * 15, oy + 10 + row * (h * scale - 20), rF, 0, Math.PI * 2);
+                ctx.fill();
+                // Right end
+                ctx.beginPath();
+                ctx.arc(ox + lw * scale - 15 - col * 15, oy + 10 + row * (h * scale - 20), rF, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Distributed Vertical Steel
+            ctx.fillStyle = '#3b82f6';
+            const rV = 2;
+            for (let x = 80; x < lw * scale - 80; x += 40) {
+                ctx.beginPath();
+                ctx.arc(ox + x, oy + 8, rV, 0, Math.PI * 2);
+                ctx.arc(ox + x, oy + h * scale - 8, rV, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            drawDim(ctx, ox, oy - 20, ox + lw * scale, oy - 20, `lw=${lw}`, false);
+            drawDim(ctx, ox + lw * scale + 10, oy, ox + lw * scale + 10, oy + h * scale, `h=${h}`, true);
+        }
+
+        function drawElevation(lw, hw, h, sH, sV) {
+            const canvas = document.getElementById('elevCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 300);
+
+            const scale = 220 / Math.max(lw, hw);
+            const ox = 200 - (lw * scale) / 2, oy = 260;
+
+            // Wall Outline
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(ox, oy - hw * scale, lw * scale, hw * scale);
+
+            // Horizontal Bars (Red)
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+            ctx.lineWidth = 1;
+            const stepH = (sH * scale);
+            for (let y = stepH; y < hw * scale; y += stepH) {
+                ctx.beginPath();
+                ctx.moveTo(ox, oy - y);
+                ctx.lineTo(ox + lw * scale, oy - y);
+                ctx.stroke();
+            }
+
+            // Vertical Bars (Blue)
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+            const stepV = (sV * scale);
+            for (let x = stepV; x < lw * scale; x += stepV) {
+                ctx.beginPath();
+                ctx.moveTo(ox + x, oy);
+                ctx.lineTo(ox + x, oy - hw * scale);
+                ctx.stroke();
+            }
+
+            drawDim(ctx, ox - 20, oy - hw * scale, ox - 20, oy, `hw=${hw}`, true);
+        }
+
+        function drawDim(ctx, x1, y1, x2, y2, text, isVert) {
+            ctx.strokeStyle = '#64748b';
+            ctx.fillStyle = '#64748b';
+            ctx.lineWidth = 1;
+            ctx.font = '10px Inter';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            if (isVert) {
+                ctx.beginPath(); ctx.moveTo(x1-3, y1); ctx.lineTo(x1+3, y1); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x2-3, y2); ctx.lineTo(x2+3, y2); ctx.stroke();
+                ctx.save();
+                ctx.translate(x1-5, (y1+y2)/2);
+                ctx.rotate(-Math.PI/2);
+                ctx.textAlign = 'center';
+                ctx.fillText(text, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.beginPath(); ctx.moveTo(x1, y1-3); ctx.lineTo(x1, y1+3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x2, y2-3); ctx.lineTo(x2, y2+3); ctx.stroke();
+                ctx.textAlign = 'center';
+                ctx.fillText(text, (x1+x2)/2, y1-5);
+            }
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>

@@ -142,6 +142,24 @@
                 </div>
             </div>
 
+            <div class="section-header">Compression Reinforcement</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label for="barSizeComp">Bar Diameter</label>
+                    <select id="barSizeComp">
+                        <option value="0">None</option>
+                        <option value="12">12 mm</option>
+                        <option value="16">16 mm</option>
+                        <option value="20">20 mm</option>
+                        <option value="25">25 mm</option>
+                    </select>
+                </div>
+                <div class="form-col">
+                    <label for="numBarsComp">No. of Bars</label>
+                    <input type="number" id="numBarsComp" value="0" step="1" min="0">
+                </div>
+            </div>
+
             <div class="section-header">Loads & Time</div>
             <div class="form-row">
                 <div class="form-col">
@@ -268,12 +286,18 @@
                 </div>
             </div>
 
+            <!-- Recommendations -->
+            <div class="result-block" id="recommendationsBlock" style="display:none;">
+                <h3><i class="fa-solid fa-lightbulb"></i> Recommendations</h3>
+                <div id="recommendationsList" style="font-size: 0.9rem; color: #334155; line-height: 1.6;"></div>
+            </div>
+
         </div>
     </main>
 
     <script>
         // --- VISUALIZATION LOGIC ---
-        function drawSection(b, h, cc, numBars, db, stirrup) {
+        function drawSection(b, h, cc, numBars, db, stirrup, numBarsComp, dbComp) {
             const canvas = document.getElementById('sectionCanvas');
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
@@ -321,6 +345,28 @@
                 ctx.beginPath();
                 ctx.arc(barX, barY, (db/2 * scale), 0, 2 * Math.PI);
                 ctx.fill();
+            }
+
+            // Draw Compression Bars
+            if (numBarsComp > 0) {
+                const barYComp = startY + stirrupInset + (stirrup*scale) + (dbComp/2 * scale);
+                const effWidthComp = drawB - 2*stirrupInset - 2*(stirrup*scale) - (dbComp*scale);
+                const gapComp = numBarsComp > 1 ? effWidthComp / (numBarsComp - 1) : 0;
+
+                ctx.fillStyle = '#ef4444'; // Red for compression bars
+                
+                for(let i=0; i<numBarsComp; i++) {
+                    let barX;
+                    if(numBarsComp === 1) {
+                        barX = startX + drawB/2;
+                    } else {
+                        barX = startX + stirrupInset + (stirrup*scale) + (dbComp/2*scale) + (i * gapComp);
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.arc(barX, barYComp, (dbComp/2 * scale), 0, 2 * Math.PI);
+                    ctx.fill();
+                }
             }
 
             // Dimensions Text
@@ -411,6 +457,8 @@
             const fy = parseFloat(document.getElementById('fy').value);
             const db = parseFloat(document.getElementById('barSize').value);
             const n = parseFloat(document.getElementById('numBars').value);
+            const dbComp = parseFloat(document.getElementById('barSizeComp').value);
+            const nComp = parseFloat(document.getElementById('numBarsComp').value);
             const cc = parseFloat(document.getElementById('cover').value);
             const ds = parseFloat(document.getElementById('stirrup').value);
             const wD = parseFloat(document.getElementById('wd').value); // kN/m -> N/mm
@@ -445,6 +493,8 @@
 
             // --- SECTION PROPERTIES ---
             const As = n * (Math.PI * Math.pow(db/2, 2));
+            const Asp = nComp > 0 ? nComp * (Math.PI * Math.pow(dbComp/2, 2)) : 0;
+            const dp = cc + ds + (dbComp / 2);
             const Es = 200000; // MPa
             const Ec = 4700 * Math.sqrt(fc); // MPa
             const modN = Es / Ec;
@@ -455,15 +505,16 @@
             const fr = 0.7 * Math.sqrt(fc); // Modulus of Rupture (SI ACI)
             const Mcr = (fr * Ig) / yt; // N-mm
 
-            // Cracked Properties (Transformed Section)
-            // Quadratic for neutral axis x: (b/2)x^2 + nAs*x - nAs*d = 0
+            // Cracked Properties (Transformed Section) - Doubly Reinforced
+            // Quadratic for neutral axis x: (b/2)x^2 + ((n-1)A's + nAs)x - ((n-1)A's*d' + nAs*d) = 0
+            const n_minus_1 = modN - 1;
             const quadA = b / 2;
-            const quadB = modN * As;
-            const quadC = -modN * As * d;
+            const quadB = (n_minus_1 * Asp) + (modN * As);
+            const quadC = -((n_minus_1 * Asp * dp) + (modN * As * d));
             
             const x = (-quadB + Math.sqrt(Math.pow(quadB, 2) - 4 * quadA * quadC)) / (2 * quadA);
             
-            const Icr = (b * Math.pow(x, 3)) / 3 + (modN * As * Math.pow(d - x, 2));
+            const Icr = (b * Math.pow(x, 3)) / 3 + (n_minus_1 * Asp * Math.pow(x - dp, 2)) + (modN * As * Math.pow(d - x, 2));
 
             // --- LOADS & MOMENTS ---
             // Convert loads kN/m to N/mm (same value numerically)
@@ -473,6 +524,7 @@
             // Max Service Moment (Simple Span assumption)
             // M = wL^2 / 8.  w is N/mm, L is mm -> Result N-mm
             const Ma = (wTotal * Math.pow(L, 2)) / 8;
+            const Ma_D = (wD * Math.pow(L, 2)) / 8;
             const Ma_Sus = (wSus * Math.pow(L, 2)) / 8;
 
             // --- DEFLECTION CALCULATIONS ---
@@ -489,6 +541,16 @@
                 Ie = Math.min(Ie, Ig);
             }
 
+            // For Dead Load
+            let Ie_D;
+            if (Ma_D <= Mcr) {
+                Ie_D = Ig;
+            } else {
+                const ratioD = Math.pow(Mcr / Ma_D, 3);
+                Ie_D = ratioD * Ig + (1 - ratioD) * Icr;
+                Ie_D = Math.min(Ie_D, Ig);
+            }
+
             // For Sustained Load
             if (Ma_Sus <= Mcr) {
                 Ie_Sus = Ig;
@@ -498,17 +560,21 @@
                 Ie_Sus = Math.min(Ie_Sus, Ig);
             }
 
-            // Immediate Deflections
-            // Delta = 5wL^4 / (384 E I)
+            // Immediate Deflections (Delta = 5wL^4 / (384 E I))
             const delta_Imm = (5 * wTotal * Math.pow(L, 4)) / (384 * Ec * Ie);
+            const delta_D = (5 * wD * Math.pow(L, 4)) / (384 * Ec * Ie_D);
+            const delta_L = delta_Imm - delta_D;
             
-            // Long Term Deflection logic (ACI)
-            // Delta_LT = Delta_Imm(Sus) * Lambda
-            // Lambda = xi / (1 + 50*rho'). rho' = 0 for singly reinforced.
-            const lambda = xi / (1 + 0); // Assuming no compression steel for simplicity in this module
+            const delta_D_plus_SL = (5 * wSus * Math.pow(L, 4)) / (384 * Ec * Ie_Sus);
+            const delta_SL = delta_D_plus_SL - delta_D;
             
-            const delta_Imm_Sus = (5 * wSus * Math.pow(L, 4)) / (384 * Ec * Ie_Sus);
-            const delta_CreepShrink = delta_Imm_Sus * lambda;
+            // Long Term Deflection logic (ACI 318-11 9.5.2.5)
+            // Lambda = xi / (1 + 50*rho')
+            const rho_prime = Asp / (b * d);
+            const lambda_inf = 2.0 / (1 + 50 * rho_prime); // For 5 years or more
+            const lambda_t = xi / (1 + 50 * rho_prime);
+            
+            const delta_CreepShrink = (lambda_inf * delta_D) + (lambda_t * delta_SL);
 
             // Total Deflection = Immediate(Total) + Creep/Shrinkage component
             // Note: Some interpretations take Delta_Total = Delta_Imm(L) + Delta_LT(Sus).
@@ -557,7 +623,7 @@
             // Visuals
             document.getElementById('resultsArea').style.opacity = '1';
             document.getElementById('resultsArea').style.pointerEvents = 'auto';
-            drawSection(b, h, cc, n, db, ds);
+            drawSection(b, h, cc, n, db, ds, nComp, dbComp);
             drawDeflectionChart(L/1000, delta_Imm, delta_Total);
 
             // Table Population
@@ -568,6 +634,7 @@
                 <div class="result-row"><span class="result-label">Steel Area ($A_s$):</span><span class="result-value">${As.toFixed(0)} mm²</span></div>
                 <div class="result-row"><span class="result-label">Effective Depth ($d$):</span><span class="result-value">${d.toFixed(1)} mm</span></div>
                 <div class="result-row"><span class="result-label">Reinforcement Ratio ($\rho$):</span><span class="result-value">${(As/(b*d)).toFixed(4)}</span></div>
+                ${nComp > 0 ? `<div class="result-row"><span class="result-label">Comp. Steel Area ($A'_s$):</span><span class="result-value">${Asp.toFixed(0)} mm²</span></div>` : ''}
             `;
 
             // Crack Results
@@ -585,7 +652,7 @@
             document.getElementById('resMa').innerText = (Ma/1e6).toFixed(2) + " kN-m";
             document.getElementById('resIe').innerText = Ie.toExponential(2) + " mm⁴";
             document.getElementById('resImmDef').innerText = delta_Imm.toFixed(2) + " mm";
-            document.getElementById('resLambda').innerText = lambda.toFixed(2);
+            document.getElementById('resLambda').innerText = lambda_t.toFixed(2);
             document.getElementById('resTotalDef').innerText = delta_Total.toFixed(2) + " mm";
 
             // Limit Check (L/240)
@@ -605,22 +672,40 @@
                 badge.innerText = "CHECK";
             }
 
+            // Recommendations
+            const recBlock = document.getElementById('recommendationsBlock');
+            const recList = document.getElementById('recommendationsList');
+            let recommendations = [];
+            if (!defCheck) {
+                recommendations.push("<strong>Deflection:</strong> Increase beam depth ($h$), increase concrete strength ($f'_c$), or add compression reinforcement ($A'_s$) to reduce long-term creep.");
+            }
+            if (crackWidth > 0.41) { // 0.41mm is limit for dry air in MD Table 6.3
+                recommendations.push("<strong>Crack Width:</strong> Use more bars of smaller diameter to improve distribution, or reduce service stress by increasing $A_s$.");
+            }
+            if (!spacingCheck) {
+                recommendations.push("<strong>Bar Spacing:</strong> Reduce bar spacing by using more bars of smaller diameter to meet ACI 10.6.4 requirements.");
+            }
+
+            if (recommendations.length > 0) {
+                recBlock.style.display = 'block';
+                recList.innerHTML = '<ul style="padding-left: 20px;">' + recommendations.map(r => `<li>${r}</li>`).join('') + '</ul>';
+            } else {
+                recBlock.style.display = 'none';
+            }
+
             // Re-render MathJax
             if (window.MathJax && window.MathJax.typesetPromise) {
                 MathJax.typesetPromise();
             }
         }
 
-        // Draw initial placeholder
+        // Initialize
         window.onload = function() {
-            const canvas = document.getElementById('sectionCanvas');
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#f1f5f9';
-            ctx.fillRect(0,0,300,350);
-            ctx.fillStyle = '#64748b';
-            ctx.font = '14px Inter';
-            ctx.textAlign = 'center';
-            ctx.fillText("Enter parameters and click Calculate", 150, 175);
+            // Attach listeners to all inputs for live update
+            document.querySelectorAll('.input-panel input, .input-panel select').forEach(el => {
+                el.addEventListener('input', calculateServiceability);
+            });
+            calculateServiceability();
         };
     </script>
 </body>
