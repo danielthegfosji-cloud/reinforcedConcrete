@@ -224,6 +224,14 @@
             const barV = parseFloat(document.getElementById('barV').value);
             const barF = parseFloat(document.getElementById('barF').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('calcOutput').innerHTML = "<p style='color: var(--error); font-weight: 600; padding: 1rem;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                document.getElementById('statusBadge').className = 'status-badge status-fail';
+                document.getElementById('statusBadge').innerText = 'Invalid Input';
+                return;
+            }
+
             const phi = 0.75;
             const d = 0.8 * lw;
 

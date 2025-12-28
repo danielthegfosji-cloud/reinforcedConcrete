@@ -162,6 +162,12 @@
             const barSize = parseFloat(document.getElementById('barSize').value);
             const s = parseFloat(document.getElementById('spacing').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fm) || fm < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('resultsArea').innerHTML = "<p style='color: var(--error); font-weight: 600; text-align: center;'>Please enter valid material properties ($f'_m \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                return;
+            }
+
             const b = 1000; 
             const Mu = (w * H * H / 8); 
             const phi = 0.9;

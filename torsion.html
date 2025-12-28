@@ -286,6 +286,14 @@
             const db_long = BAR_DATA[longSize].d;
             const Ab_long = BAR_DATA[longSize].area;
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('res_step1').innerHTML = "<p style='color: var(--error); font-weight: 600;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                document.getElementById('resultsArea').style.display = 'block';
+                document.getElementById('welcomeMsg').style.display = 'none';
+                return;
+            }
+
             const phi = 0.75; // Shear/Torsion
             
             // 2. Geometric Properties

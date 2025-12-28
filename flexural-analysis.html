@@ -183,6 +183,12 @@
             const As = parseFloat(document.getElementById('as').value);
             const Ma = parseFloat(document.getElementById('moment').value); // kN-m
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('resultsArea').innerHTML = "<p style='color: var(--error); font-weight: 600; text-align: center;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                return;
+            }
+
             // 2. Material & Section Properties
             const Ec = 4700 * Math.sqrt(fc);
             const Es = 200000;

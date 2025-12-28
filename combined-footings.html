@@ -303,6 +303,15 @@
             const fy = parseFloat(document.getElementById('fy').value); // MPa
             const mainBarSize = parseInt(document.getElementById('barSize').value);
 
+            // Validation to prevent numerical instability or excessive bar counts
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                const statusBox = document.getElementById('statusBox');
+                statusBox.className = "status-box status-fail";
+                statusBox.innerHTML = "<i class='fa-solid fa-circle-exclamation'></i> Please enter valid material properties ($f'_c \ge 12$ MPa and $f_y \ge 200$ MPa).";
+                document.getElementById('results').style.display = 'block';
+                return;
+            }
+
             // Constants
             const gammaC = 24; // kN/m3
             const phiShear = 0.75;

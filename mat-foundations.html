@@ -641,6 +641,12 @@
             const cover = parseFloat(inputs.cover.value); // mm
             const q_all = parseFloat(inputs.qall.value); // kPa
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                output.innerHTML = "<p style='color: var(--danger); font-weight: 600; padding: 1rem;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                return;
+            }
+
             if(columns.length === 0) {
                 output.innerHTML = '<div style="color: var(--text-sub); text-align: center;">Add columns to begin analysis...</div>';
                 return;

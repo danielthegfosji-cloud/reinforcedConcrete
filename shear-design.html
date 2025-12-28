@@ -256,6 +256,12 @@
             const barArea = parseFloat(document.getElementById('barSize').value);
             const legs = parseFloat(document.getElementById('legs').value);
 
+            // Validation to prevent numerical instability or infinite loops
+            if (isNaN(fc) || fc < 12 || isNaN(fyt) || fyt < 200) {
+                document.getElementById('summaryContent').innerHTML = "<p style='color: var(--error); font-weight: 600; padding: 1rem;'>Please enter valid material properties ($f'_c \ge 12$ MPa and $f_{yt} \ge 200$ MPa) to proceed with the calculation.</p>";
+                return;
+            }
+
             // 2. Preliminary Calcs
             // Estimate effective depth d (assume one layer of tension steel approx 25mm dia)
             // d = h - cover - stirrup_dia (approx 10) - longitudinal_bar_radius (approx 12)

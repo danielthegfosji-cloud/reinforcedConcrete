@@ -280,6 +280,15 @@
             const h = parseFloat(document.getElementById('h_thick').value); // mm
             const db = parseFloat(document.getElementById('bar_size').value); // mm
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('res-loads').innerHTML = "<p style='color: var(--error); font-weight: 600;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                document.getElementById('results-section').style.display = 'block';
+                document.getElementById('status-badge').className = "status-badge status-fail";
+                document.getElementById('status-badge').innerText = "Invalid Input";
+                return;
+            }
+
             // 2. Initial Calculations (Service Loads)
             const B_m = B / 1000; // m
             const h_m = h / 1000; // m

@@ -286,6 +286,14 @@
             const wc = parseFloat(document.getElementById('density').value);
             const alertBox = document.getElementById('validation-msg');
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                alertBox.style.display = 'block';
+                alertBox.innerHTML = "Error: Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \ge 200$ MPa).";
+                alertBox.className = "alert-box alert-warning"; // Reusing warning style for error
+                return;
+            }
+
             // 2. Sanity Checks
             let warnings = [];
             

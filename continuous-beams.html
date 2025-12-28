@@ -612,6 +612,16 @@
             const stirrupSize = parseFloat(document.getElementById('stirrupSize').value);
             const cover = parseFloat(document.getElementById('cover').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                const statusBox = document.getElementById('statusBox');
+                statusBox.className = 'status-box status-fail';
+                statusBox.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Please enter valid material properties ($f\'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).';
+                statusBox.style.display = 'block';
+                document.getElementById('resultsArea').style.display = 'block';
+                return;
+            }
+
             // 2. Load Calculations
             const densityConc = 24; // kN/m^3
             const selfWeight = (bw * h / 1000000) * densityConc; // kN/m

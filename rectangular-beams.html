@@ -396,6 +396,12 @@
             const stirrup = parseFloat(document.getElementById('d_stirrup').value);
             const barSize = parseInt(document.getElementById('d_barSize').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('result-output').innerHTML = "<p style='color: var(--error); font-weight: 600;'>Please enter valid material properties ($f'_c \ge 12$ MPa and $f_y \ge 200$ MPa).</p>";
+                return;
+            }
+
             const Mu = Mu_kNm * 1e6; // Convert to N-mm
             const barProps = getBarProp(barSize);
             const beta1 = getBeta1(fc);
@@ -593,6 +599,12 @@
             const fc = parseFloat(document.getElementById('a_fc').value);
             const fy = parseFloat(document.getElementById('a_fy').value);
             
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('result-output').innerHTML = "<p style='color: var(--error); font-weight: 600;'>Please enter valid material properties ($f'_c \ge 12$ MPa and $f_y \ge 200$ MPa).</p>";
+                return;
+            }
+
             const n_t = parseFloat(document.getElementById('a_nb_t').value);
             const size_t = parseInt(document.getElementById('a_size_t').value);
             const n_c = parseFloat(document.getElementById('a_nb_c').value);

@@ -264,6 +264,14 @@
             const ll_kpa = parseFloat(document.getElementById('ll').value);
             const barSize = parseFloat(document.getElementById('barSize').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('res-analysis').innerHTML = "<p style='color: var(--error); font-weight: 600;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                document.getElementById('resultsArea').style.display = 'block';
+                document.getElementById('placeholder').style.display = 'none';
+                return;
+            }
+
             // Constants
             const b = 1000; // Design strip width in mm
             const L_mm = L_m * 1000;

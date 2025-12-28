@@ -281,6 +281,12 @@
             const beamBw = parseFloat(document.getElementById('beamBw').value) || 0;
             const beamH = parseFloat(document.getElementById('beamH').value) || 0;
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('output').innerHTML = "<p style='color: var(--error); font-weight: 600; padding: 1rem;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                return;
+            }
+
             // 2. Loads
             const w_self = (h / 1000) * CONCRETE_DENSITY; // kN/m^2
             const w_d_total = w_sdl + w_self;

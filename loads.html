@@ -241,6 +241,12 @@
             const w_sdl = parseFloat(document.getElementById('wd_super').value);
             const w_l = parseFloat(document.getElementById('wl').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                showAlert('Error: Please enter valid material properties ($f\'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).', 'error');
+                return;
+            }
+
             // 2. Sanity Checks
             const alertBox = document.getElementById('alertBox');
             alertBox.style.display = 'none';

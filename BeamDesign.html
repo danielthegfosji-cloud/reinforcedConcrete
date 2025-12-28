@@ -430,6 +430,13 @@
         const preferredBarIdx = parseInt(document.getElementById('d_barSize').value);
         const stirrupDiam = parseInt(document.getElementById('d_stirrup').value);
 
+        // Validation to prevent numerical instability
+        if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+            document.getElementById('d_results').innerHTML = "<p class='warning'>Please enter valid material properties ($f'_c \ge 12$ MPa and $f_y \ge 200$ MPa).</p>";
+            document.getElementById('d_results').style.display = 'block';
+            return;
+        }
+
         const bar = rebarData[preferredBarIdx];
         const stirrupArea = (Math.PI * Math.pow(stirrupDiam, 2) / 4) * 2; // 2 legs
 
@@ -618,6 +625,13 @@
         
         const stirrupBar = rebarData[parseInt(document.getElementById('a_stirrupSize').value)];
         const s = parseFloat(document.getElementById('a_spacing').value);
+
+        // Validation to prevent numerical instability
+        if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+            document.getElementById('a_results').innerHTML = "<p class='warning'>Please enter valid material properties ($f'_c \ge 12$ MPa and $f_y \ge 200$ MPa).</p>";
+            document.getElementById('a_results').style.display = 'block';
+            return;
+        }
 
         // Geometry
         const d = h - cover - stirrupBar.diam - (botBar.diam/2);

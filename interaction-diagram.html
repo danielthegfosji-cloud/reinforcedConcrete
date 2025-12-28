@@ -283,6 +283,15 @@
             const Mny_in = parseFloat(document.getElementById('mny_input').value) || 0;
             const M_res = Math.sqrt(Mnx_in**2 + Mny_in**2);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                const validationBox = document.getElementById('validationBox');
+                validationBox.innerHTML = "<strong>Error:</strong> Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).";
+                validationBox.className = "validation-msg error";
+                validationBox.style.display = "block";
+                return;
+            }
+
             const validationBox = document.getElementById('validationBox');
 
             // 2. Geometry & Reinforcement Logic

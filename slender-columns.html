@@ -269,6 +269,12 @@
             const cover = parseFloat(document.getElementById('cover').value);
             const tieDia = parseFloat(document.getElementById('tieSize').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('slendernessOutput').innerHTML = "<p style='color: var(--error); font-weight: 600;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                return;
+            }
+
             // 2. Sanity & Code Checks (Reinforcement)
             const Ag = b * h;
             const barArea = (Math.PI * Math.pow(barDia, 2)) / 4;

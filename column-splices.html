@@ -226,6 +226,12 @@
             const confinement = parseFloat(document.getElementById('confinement').value);
             const excess = parseFloat(document.getElementById('excessRatio').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                document.getElementById('ldcResults').innerHTML = "<p style='color: var(--error); font-weight: 600;'>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</p>";
+                return;
+            }
+
             const db = BAR_DATA[barSize].d;
 
             // --- 1. Development Length ---

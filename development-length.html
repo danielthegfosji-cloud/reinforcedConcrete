@@ -312,6 +312,15 @@
             const cover = parseFloat(document.getElementById('cover').value);
             const ktr = parseFloat(document.getElementById('ktr').value);
 
+            // Validation to prevent numerical instability
+            if (isNaN(fc) || fc < 12 || isNaN(fy) || fy < 200) {
+                const sanityBox = document.getElementById('sanityCheck');
+                sanityBox.className = "status-box status-err";
+                sanityBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>Please enter valid material properties ($f'_c \\ge 12$ MPa and $f_y \\ge 200$ MPa).</span>`;
+                sanityBox.style.display = "flex";
+                return;
+            }
+
             const db = barData[barKey].d;
 
             // 2. Determine Factors
