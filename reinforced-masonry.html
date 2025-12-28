@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reinforced Masonry | RC Design Suite</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- MathJax -->
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .viz-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .canvas-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            max-width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            background-color: #f8fafc;
+        }
+        .status-box {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-success { background: #dcfce7; color: #166534; }
+        .status-warning { background: #fef3c7; color: #92400e; }
+        .status-danger { background: #fee2e2; color: #991b1b; }
+        
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent);
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Masonry Inputs</h2>
+            
+            <div class="section-header">Material Properties</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Masonry $f'_m$ (MPa)</label>
+                    <input type="number" id="fm" value="10.5" step="0.5">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$ (MPa)</label>
+                    <input type="number" id="fy" value="420" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Geometry</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Wall Height $H$ (m)</label>
+                    <input type="number" id="height" value="5.5" step="0.1">
+                </div>
+                <div class="form-col">
+                    <label>Thickness $t$ (mm)</label>
+                    <input type="number" id="thick" value="190" step="10">
+                </div>
+            </div>
+
+            <div class="section-header">Lateral Loading</div>
+            <div class="form-group">
+                <label>Wind Load $w$ (kN/m²)</label>
+                <input type="number" id="load" value="1.5" step="0.1">
+            </div>
+
+            <div class="section-header">Reinforcement</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Bar Size (mm)</label>
+                    <select id="barSize">
+                        <option value="10">10 mm</option>
+                        <option value="12">12 mm</option>
+                        <option value="16" selected>16 mm</option>
+                        <option value="20">20 mm</option>
+                    </select>
+                </div>
+                <div class="form-col">
+                    <label>Spacing $s$ (mm)</label>
+                    <input type="number" id="spacing" value="800" step="200">
+                </div>
+            </div>
+
+            <button class="calc-btn" onclick="calculate()">Calculate Wall</button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <div class="hero">
+            <h1>Reinforced Masonry Wall Analysis</h1>
+            <p>Design of non-load-bearing masonry walls subjected to out-of-plane lateral loads based on ACI 530 / TMS 402 standards.</p>
+        </div>
+
+        <div class="viz-container">
+            <div class="canvas-card">
+                <div class="canvas-title">Wall Cross-Section (Plan)</div>
+                <canvas id="sectionCanvas" width="350" height="250"></canvas>
+            </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Bending Moment Diagram</div>
+                <canvas id="momentCanvas" width="350" height="250"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div id="resultsArea">
+                <p style="color: #64748b; font-style: italic; text-align: center;">Enter parameters and click Calculate to see results.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function calculate() {
+            const fm = parseFloat(document.getElementById('fm').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+            const H = parseFloat(document.getElementById('height').value);
+            const t = parseFloat(document.getElementById('thick').value);
+            const w = parseFloat(document.getElementById('load').value);
+            const barSize = parseFloat(document.getElementById('barSize').value);
+            const s = parseFloat(document.getElementById('spacing').value);
+
+            const b = 1000; 
+            const Mu = (w * H * H / 8); 
+            const phi = 0.9;
+            const d = t / 2; 
+
+            const term = 1 - (2 * Mu * 1e6) / (0.80 * phi * fm * b * d * d);
+            let rho_req = 0;
+            let status = "OK";
+            let statusClass = "status-success";
+
+            if (term < 0) {
+                rho_req = 0;
+                status = "Section Inadequate (Compression Failure)";
+                statusClass = "status-danger";
+            } else {
+                rho_req = (0.80 * fm / fy) * (1 - Math.sqrt(term));
+            }
+
+            const As_req = rho_req * b * d; 
+            const Ab = (Math.PI * barSize * barSize / 4);
+            const As_prov = (1000 / s) * Ab;
+
+            const a = (As_prov * fy) / (0.80 * fm * b);
+            const c = a / 0.80;
+            const eps_mu = 0.0025;
+            const eps_s = ((d - c) / c) * eps_mu;
+            const eps_y = fy / 200000;
+            const ductility_ratio = eps_s / eps_y;
+
+            if (ductility_ratio < 1.5 && statusClass !== "status-danger") {
+                status = "Brittle Section (eps_s < 1.5 * eps_y)";
+                statusClass = "status-warning";
+            }
+
+            const resultsArea = document.getElementById('resultsArea');
+            resultsArea.innerHTML = `
+                <div class="status-box ${statusClass}">
+                    <i class="fa-solid ${statusClass === 'status-success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i>
+                    Design Status: ${status}
+                </div>
+                <div class="math-block">
+                    <strong>Factored Moment:</strong><br>
+                    $M_u = \\frac{w H^2}{8} = \\frac{${w} \\times ${H}^2}{8} = ${Mu.toFixed(2)} \\text{ kN-m/m}$
+                </div>
+                <div class="math-block">
+                    <strong>Flexural Design (ACI 530):</strong><br>
+                    Effective Depth $d = ${d.toFixed(1)} \\text{ mm}$<br>
+                    Required $A_s = ${As_req.toFixed(0)} \\text{ mm}^2/\\text{m}$<br>
+                    Provided $A_s = ${As_prov.toFixed(0)} \\text{ mm}^2/\\text{m}$ (using $\\phi${barSize} @ ${s}mm)
+                </div>
+                <div class="math-block">
+                    <strong>Ductility Check:</strong><br>
+                    Stress Block $a = ${a.toFixed(2)} \\text{ mm}$<br>
+                    Neutral Axis $c = ${c.toFixed(2)} \\text{ mm}$<br>
+                    Steel Strain $\\epsilon_s = ${eps_s.toFixed(5)}$<br>
+                    Yield Strain $\\epsilon_y = ${eps_y.toFixed(5)}$<br>
+                    Ratio $\\epsilon_s / \\epsilon_y = ${ductility_ratio.toFixed(2)}$ (Min 1.5 required)
+                </div>
+            `;
+
+            drawSection(t, s, barSize);
+            drawMoment(Mu, H);
+            MathJax.typesetPromise();
+        }
+
+        function drawSection(t, s, barSize) {
+            const canvas = document.getElementById('sectionCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 350, 250);
+            const scale = 200 / t;
+            const drawT = t * scale;
+            const startX = (350 - 300) / 2; 
+            const startY = (250 - drawT) / 2;
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            const cellW = 100; 
+            for(let i=0; i<3; i++) {
+                ctx.strokeRect(startX + i*cellW, startY, cellW, drawT);
+                ctx.strokeRect(startX + i*cellW + 5, startY + 5, cellW - 10, 15);
+                ctx.strokeRect(startX + i*cellW + 5, startY + drawT - 20, cellW - 10, 15);
+            }
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(startX + 150, startY + drawT/2, barSize*scale/4 + 2, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Thickness t = ${t}mm`, 175, startY - 10);
+            ctx.fillText(`Reinforced Cell`, 175, startY + drawT + 20);
+        }
+
+        function drawMoment(Mu, H) {
+            const canvas = document.getElementById('momentCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 350, 250);
+            const h_draw = 180;
+            const w_draw = 100;
+            const ox = 100;
+            const oy = 35;
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox, oy + h_draw);
+            ctx.stroke();
+            ctx.strokeStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            for(let i=0; i<=20; i++) {
+                const y = oy + (i/20) * h_draw;
+                const x = ox + 4 * (i/20) * (1 - i/20) * w_draw;
+                ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.fillStyle = '#3b82f6';
+            ctx.font = '12px Inter';
+            ctx.fillText(`Mu = ${Mu.toFixed(1)} kNm`, ox + w_draw + 5, oy + h_draw/2);
+            ctx.fillStyle = '#64748b';
+            ctx.fillText(`Height H = ${H}m`, ox - 80, oy + h_draw/2);
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>
