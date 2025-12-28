@@ -1,6 +1,6 @@
 # RC Design Suite
 
-### [🚀 Live Demo](https://danielthegfosji-cloud.github.io/doublyreinforcedbeam-tool/)
+### [🚀 Live Demo](https://danielthegfosji-cloud.github.io/reinforcedConcrete/)
 
 A comprehensive, web-based engineering suite for the analysis and design of reinforced concrete and masonry structures. This tool implements the **ACI 318-11** and **ACI 530/TMS 402** standards, providing engineers and students with an interactive platform to verify structural components.
 
@@ -63,4 +63,4 @@ The suite is divided into specialized modules covering the full spectrum of rein
 ---
 *Developed for educational and preliminary design verification purposes.*
 
-[!GitHub Pages](https://danielthegfosji-cloud.github.io/doublyreinforcedbeam-tool/)
+[!GitHub Pages](https://danielthegfosji-cloud.github.io/reinforcedConcrete/)
