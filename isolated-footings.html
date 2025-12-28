@@ -162,6 +162,26 @@
             color: var(--text-main);
         }
 
+        .check-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s;
+        }
+        .check-card.pass { border-left: 5px solid var(--success); background-color: #f0fdf4; }
+        .check-card.fail { border-left: 5px solid var(--error); background-color: #fef2f2; }
+        .check-card.warn { border-left: 5px solid var(--warning); background-color: #fffbeb; }
+        
+        .check-card h3 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         .check-pass { color: var(--success); }
         .check-fail { color: var(--error); font-weight: bold; }
     </style>
@@ -366,7 +386,7 @@
         const PHI_FLEXURE = 0.90;
         const LAMBDA = 1.0; // Normal weight concrete assumption
 
-        function drawPlan(L, B, c1, c2, pos, h, cover) {
+        function drawPlan(L, B, c1, c2, pos, h, cover, num_bars) {
             const canvas = document.getElementById('planCanvas');
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
@@ -394,6 +414,29 @@
             ctx.lineWidth = 2;
             ctx.fillRect(startX, startY, drawL, drawB);
             ctx.strokeRect(startX, startY, drawL, drawB);
+
+            // Draw Rebar Mat (On top of footing)
+            const drawCover = (cover / 1000) * scale;
+            const barSpacingL = (drawL - 2 * drawCover) / (num_bars - 1);
+            const barSpacingB = (drawB - 2 * drawCover) / (num_bars - 1);
+
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            
+            // Bars along L (spaced along B)
+            for (let i = 0; i < num_bars; i++) {
+                ctx.beginPath();
+                ctx.moveTo(startX + drawCover, startY + drawCover + i * barSpacingB);
+                ctx.lineTo(startX + drawL - drawCover, startY + drawCover + i * barSpacingB);
+                ctx.stroke();
+            }
+            // Bars along B (spaced along L)
+            for (let i = 0; i < num_bars; i++) {
+                ctx.beginPath();
+                ctx.moveTo(startX + drawCover + i * barSpacingL, startY + drawCover);
+                ctx.lineTo(startX + drawCover + i * barSpacingL, startY + drawB - drawCover);
+                ctx.stroke();
+            }
 
             // Calculate Column Position
             let colX, colY;
@@ -458,7 +501,7 @@
             ctx.setLineDash([]);
         }
 
-        function drawElevation(L, h, soilDepth, c1, pos) {
+        function drawElevation(L, h, soilDepth, c1, pos, cover, num_bars) {
             const canvas = document.getElementById('elevCanvas');
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
@@ -495,18 +538,27 @@
             ctx.fillRect(colX, floorY - 60, drawColW, 60); // Stub
             ctx.strokeRect(colX, floorY - 60, drawColW, 60);
 
-            // Draw Rebar (Symbolic)
-            ctx.strokeStyle = '#dc2626';
+            // Draw Rebar (Actual)
+            const drawCoverH = (cover / 1000) * scale;
+            const barY = floorY + drawH - drawCoverH;
+            
+            ctx.strokeStyle = '#ef4444';
             ctx.lineWidth = 3;
+            
+            // Longitudinal bars (lines)
             ctx.beginPath();
-            // Bottom mat
-            ctx.moveTo(startX + 10, floorY + drawH - 10);
-            ctx.lineTo(startX + drawL - 10, floorY + drawH - 10);
-            // Hooks
-            ctx.lineTo(startX + drawL - 10, floorY + drawH - 30);
-            ctx.moveTo(startX + 10, floorY + drawH - 10);
-            ctx.lineTo(startX + 10, floorY + drawH - 30);
+            ctx.moveTo(startX + drawCoverH, barY);
+            ctx.lineTo(startX + drawL - drawCoverH, barY);
             ctx.stroke();
+
+            // Transverse bars (dots)
+            ctx.fillStyle = '#ef4444';
+            const barSpacingL = (drawL - 2 * drawCoverH) / (num_bars - 1);
+            for (let i = 0; i < num_bars; i++) {
+                ctx.beginPath();
+                ctx.arc(startX + drawCoverH + i * barSpacingL, barY - 5, 2, 0, 2 * Math.PI);
+                ctx.fill();
+            }
 
             // Ground Level
             ctx.strokeStyle = '#166534';
@@ -729,56 +781,75 @@
             if (V_u2 > phi_Vc_punch) pass = false;
             if (L_avail < Ld_req) pass = false;
             if (uplift_fail) pass = false;
+            if (!spacing_ok) pass = false;
 
             const statusBadge = document.getElementById('statusBadge');
-            if(pass) {
-                statusBadge.className = 'status-badge status-pass';
-                statusBadge.innerText = 'Design OK';
-            } else {
-                statusBadge.className = 'status-badge status-fail';
-                statusBadge.innerText = 'Design Fail';
-            }
+            statusBadge.className = 'status-badge ' + (pass ? 'status-pass' : 'status-fail');
+            statusBadge.innerText = pass ? 'Design OK' : 'Design Fail';
 
             const outputDiv = document.getElementById('calcOutput');
-            outputDiv.innerHTML = `
-                <div class="calc-step">
-                    <h3>1. Bearing Pressure Check</h3>
-                    $$q_{net,all} = ${qa} - ${(stress_conc + stress_soil).toFixed(2)} = ${q_net_allow.toFixed(2)} \\text{ kPa}$$
-                    $$P_{service} = ${P_serv} \\text{ kN} \\rightarrow q_{s,max} = ${q_s_max.toFixed(2)} \\text{ kPa}$$
-                    $$A_{prov} = L \\times B = ${L} \\times ${B} = ${(L*B).toFixed(2)} \\text{ m}^2$$
-                    $$P_u = ${P_u.toFixed(2)} \\text{ kN} \\rightarrow q_{u,max} = ${q_u_max.toFixed(2)} \\text{ kPa}$$
-                    ${eccentricity_note}
-                    ${(q_u_max / (qa*1.5) > 1) ? '<div class="warning-box"><i class="fa-solid fa-triangle-exclamation"></i>&nbsp; Warning: Factored pressure is significantly higher than allowable (Rough check). Ensure footing size is adequate for service loads.</div>' : ''}
-                </div>
+            let html = "";
 
-                <div class="calc-step">
-                    <h3>2. One-Way Shear (Wide Beam)</h3>
-                    $$d = ${d.toFixed(0)} \\text{ mm}$$
-                    $$V_{u1} = ${V_u1.toFixed(1)} \\text{ kN} \\quad \\text{(at d from face)}$$
-                    $$\\phi V_c = ${phi_Vc_1way.toFixed(1)} \\text{ kN}$$
-                    <div style="color: ${V_u1 < phi_Vc_1way ? 'var(--success)' : 'var(--danger)'}">
-                        ${V_u1 < phi_Vc_1way ? 'Capacity > Demand (OK)' : 'Capacity < Demand (FAIL)'}
+            // Card 1: Bearing
+            const bearingPass = q_s_max <= q_net_allow + stress_conc + stress_soil + sur;
+            html += `
+                <div class="check-card ${bearingPass ? 'pass' : 'fail'}">
+                    <h3>1. Bearing Pressure Check <span>${bearingPass ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-circle-xmark"></i>'}</span></h3>
+                    <div class="math-block">
+                        $$q_{net,all} = ${q_net_allow.toFixed(2)} \\text{ kPa} \\quad q_{s,max} = ${q_s_max.toFixed(2)} \\text{ kPa}$$
                     </div>
-                </div>
-
-                <div class="calc-step">
-                    <h3>3. Punching Shear</h3>
-                    $$b_o = ${bo.toFixed(0)} \\text{ mm}$$
-                    $$V_{u2} = ${V_u2.toFixed(1)} \\text{ kN}$$
-                    $$\\phi V_c = ${phi_Vc_punch.toFixed(1)} \\text{ kN}$$
-                    <div style="color: ${V_u2 < phi_Vc_punch ? 'var(--success)' : 'var(--danger)'}">
-                        ${V_u2 < phi_Vc_punch ? 'Capacity > Demand (OK)' : 'Capacity < Demand (FAIL)'}
-                    </div>
-                </div>
-
-                <div class="calc-step">
-                    <h3>4. Flexure & Reinforcement</h3>
-                    $$M_u = ${M_u.toFixed(1)} \\text{ kNm}$$
-                    $$A_{s,req} = ${refined_As.toFixed(0)} \\text{ mm}^2$$
-                    $$A_{s,min} = ${As_min.toFixed(0)} \\text{ mm}^2$$
-                    $$A_{s,design} = ${As_design.toFixed(0)} \\text{ mm}^2$$
+                    ${!bearingPass ? '<div class="warning-box" style="margin-top:10px;"><i class="fa-solid fa-lightbulb"></i> <strong>Recommendation:</strong> Increase footing area ($L \\times B$) to reduce soil pressure below allowable limits.</div>' : ''}
+                    ${(q_u_max / (qa*1.5) > 1) ? '<div class="warning-box"><i class="fa-solid fa-triangle-exclamation"></i>&nbsp; Warning: Factored pressure is high.</div>' : ''}
                 </div>
             `;
+
+            // Card 2: Uplift
+            if (isEccentric && pos !== 'center') {
+                html += `
+                    <div class="check-card ${uplift_fail ? 'fail' : 'pass'}">
+                        <h3>2. Stability (Uplift) <span>${uplift_fail ? '<i class="fa-solid fa-circle-xmark"></i>' : '<i class="fa-solid fa-circle-check"></i>'}</span></h3>
+                        <p style="font-size:0.9rem;">Resultant eccentricity check within the kern ($L/6$).</p>
+                        ${uplift_fail ? '<div class="warning-box" style="margin-top:10px;"><i class="fa-solid fa-lightbulb"></i> <strong>Recommendation:</strong> Increase footing size to keep the resultant force within the middle third (kern). This prevents soil separation and ensures stability.</div>' : ''}
+                    </div>
+                `;
+            }
+
+            // Card 3: One-Way Shear
+            const shear1Pass = V_u1 < phi_Vc_1way;
+            html += `
+                <div class="check-card ${shear1Pass ? 'pass' : 'fail'}">
+                    <h3>One-Way Shear <span>${shear1Pass ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-circle-xmark"></i>'}</span></h3>
+                    <div class="math-block">
+                        $$V_{u1} = ${V_u1.toFixed(1)} \\text{ kN} \\quad \\phi V_c = ${phi_Vc_1way.toFixed(1)} \\text{ kN}$$
+                    </div>
+                    ${!shear1Pass ? '<div class="warning-box" style="margin-top:10px;"><i class="fa-solid fa-lightbulb"></i> <strong>Recommendation:</strong> Increase footing thickness ($h$) to enhance wide-beam shear capacity.</div>' : ''}
+                </div>
+            `;
+
+            // Card 4: Punching Shear
+            const shear2Pass = V_u2 < phi_Vc_punch;
+            html += `
+                <div class="check-card ${shear2Pass ? 'pass' : 'fail'}">
+                    <h3>Punching Shear <span>${shear2Pass ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-circle-xmark"></i>'}</span></h3>
+                    <div class="math-block">
+                        $$V_{u2} = ${V_u2.toFixed(1)} \\text{ kN} \\quad \\phi V_c = ${phi_Vc_punch.toFixed(1)} \\text{ kN}$$
+                    </div>
+                    ${!shear2Pass ? '<div class="warning-box" style="margin-top:10px;"><i class="fa-solid fa-lightbulb"></i> <strong>Recommendation:</strong> Increase footing thickness ($h$) or column size to improve two-way shear resistance.</div>' : ''}
+                </div>
+            `;
+
+            // Card 5: Flexure
+            html += `
+                <div class="check-card pass">
+                    <h3>Flexure & Reinforcement <span><i class="fa-solid fa-circle-check"></i></span></h3>
+                    <div class="math-block">
+                        $$M_u = ${M_u.toFixed(1)} \\text{ kNm} \\quad A_{s,design} = ${As_design.toFixed(0)} \\text{ mm}^2$$
+                    </div>
+                    ${!spacing_ok ? `<div class="warning-box" style="margin-top:10px;"><i class="fa-solid fa-lightbulb"></i> <strong>Recommendation:</strong> ${spacing_status}. Adjust bar size or footing thickness.</div>` : ''}
+                </div>
+            `;
+
+            outputDiv.innerHTML = html;
 
             const reinfBody = document.getElementById('reinfTableBody');
             reinfBody.innerHTML = `
@@ -809,8 +880,8 @@
             `;
 
             // Draw Visuals
-            drawPlan(L, B, c1, c2, pos, h, cc);
-            drawElevation(L, h, soilDepth, c1, pos);
+            drawPlan(L, B, c1, c2, pos, h, cc, num_bars);
+            drawElevation(L, h, soilDepth, c1, pos, cc, num_bars);
 
             // Re-render MathJax
             if(window.MathJax) {
