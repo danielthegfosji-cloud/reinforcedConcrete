@@ -49,6 +49,31 @@
         .status-ok { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .status-fail { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
+        .check-pass { color: #166534; font-weight: 700; }
+        .check-fail { color: #991b1b; font-weight: 700; }
+
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent);
+            overflow-x: auto;
+        }
+
+        .warning-box {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: start;
+            gap: 10px;
+        }
+
         .calc-step { margin-bottom: 1.5rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 1rem; }
         .step-title { font-weight: 700; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; }
         .step-content { font-size: 0.95rem; line-height: 1.6; }
@@ -409,59 +434,82 @@
             
             const spacing_trans = Math.floor(1000 / (As_trans_m / barArea) / 10) * 10; // Round down to 10mm
 
+            // 10. Minimum Reinforcement (Top Transverse & Bottom Longitudinal)
+            const As_min_m = 0.0018 * 1000 * (h * 1000); // mm2/m
+            const spacing_min = Math.min(450, Math.floor(1000 / (As_min_m / barArea) / 10) * 10);
+
             // --- RENDER RESULTS ---
             
             // Status Logic
             const statusBox = document.getElementById('statusBox');
             let isSafe = true;
-            let statusMsg = "Design is Satisfactory";
 
-            if (V_crit > phiVc) { isSafe = false; statusMsg = "Shear Capacity Exceeded (Increase Depth)"; }
-            if (Vu_punch > phiVc_punch) { isSafe = false; statusMsg = "Punching Shear Failure (Increase Depth)"; }
-            if (clear_spacing < min_clear_spacing) { isSafe = false; statusMsg = "Clear Spacing too Tight (ACI 318 Min: " + min_clear_spacing.toFixed(0) + "mm)"; }
-            if (qe < 0) { isSafe = false; statusMsg = "Soil Capacity Exceeded (Increase Dimensions)"; }
+            const shearPass = V_crit <= phiVc;
+            const punchPass = Vu_punch <= phiVc_punch;
+            const spacingPass = clear_spacing >= min_clear_spacing;
+            const soilPass = qe > 0;
 
+            if (!shearPass || !punchPass || !spacingPass || !soilPass) isSafe = false;
+            
             statusBox.className = `status-box ${isSafe ? 'status-ok' : 'status-fail'}`;
-            statusBox.innerHTML = `<i class="fa-solid ${isSafe ? 'fa-check-circle' : 'fa-circle-exclamation'}"></i> ${statusMsg}`;
+            statusBox.innerHTML = `<i class="fa-solid ${isSafe ? 'fa-check-circle' : 'fa-circle-exclamation'}"></i> ${isSafe ? 'Design is Satisfactory' : 'Design Requirements Not Met'}`;
 
             // Formatting Helper
             const fmt = (n, d=2) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 
             // Step 1 Output
             document.getElementById('step1').innerHTML = `
-                Total Service Load $R = ${fmt(R_service)} \\text{ kN}$. <br>
-                Net Allowable Pressure $q_e = ${fmt(qa)} - ${fmt(wt_conc)} - ${fmt(wt_soil)} = ${fmt(qe)} \\text{ kPa}$.
+                <div class="math-block">
+                    $$ R = ${fmt(R_service)} \\text{ kN} $$
+                    $$ q_e = q_a - q_{ftg} - q_{soil} = ${fmt(qa)} - ${fmt(wt_conc)} - ${fmt(wt_soil)} = \\mathbf{${fmt(qe)} \\text{ kPa}} $$
+                </div>
+                ${!soilPass ? '<div class="warning-box"><i class="fa-solid fa-triangle-exclamation"></i> <div><strong>Critical:</strong> Soil capacity exceeded! Increase footing area.</div></div>' : ''}
             `;
 
             // Step 2 Output
             document.getElementById('step2').innerHTML = `
-                Resultant Location $x_{cg} = \\frac{${fmt(P2_service)} \\times ${fmt(spacing)}}{${fmt(R_service)}} = ${fmt(x_resultant)} \\text{ m}$ from Column 1.<br>
-                Distance from Left Edge = $${fmt(dist_edge_to_col1)} + ${fmt(x_resultant)} = ${fmt(dist_PL_to_R)} \\text{ m}$.<br>
-                <strong>Required Length $L = ${fmt(L)} \\text{ m}$.</strong><br>
-                Required Area $A_{req} = ${fmt(R_service)} / ${fmt(qe)} = ${fmt(A_req)} \\text{ m}^2$.<br>
-                <strong>Required Width $B = ${fmt(B)} \\text{ m}$.</strong>
+                <div class="math-block">
+                    $$ x_{cg} = \\frac{${fmt(P2_service)} \\times ${fmt(spacing)}}{${fmt(R_service)}} = ${fmt(x_resultant)} \\text{ m} $$
+                    $$ L = 2 \\times (${fmt(dist_edge_to_col1)} + ${fmt(x_resultant)}) = \\mathbf{${fmt(L)} \\text{ m}} $$
+                    $$ B_{req} = \\frac{R}{L \\times q_e} = \\mathbf{${fmt(B)} \\text{ m}} $$
+                </div>
             `;
 
             // Step 3 Output
             document.getElementById('step3').innerHTML = `
-                Total Ultimate Load $R_u = ${fmt(Ru)} \\text{ kN}$.<br>
-                Ultimate Linear Pressure $q_{u,line} = ${fmt(qu_line)} \\text{ kN/m}$.<br>
-                Max Negative Moment $M_u^- = ${fmt(Math.abs(Mu_neg))} \\text{ kNm}$.<br>
-                Critical One-Way Shear $V_u = ${fmt(V_crit)} \\text{ kN}$ vs $\\phi V_c = ${fmt(phiVc)} \\text{ kN}$.<br>
-                Critical Punching Shear $V_{up} = ${fmt(Vu_punch)} \\text{ kN}$ vs $\\phi V_{cp} = ${fmt(phiVc_punch)} \\text{ kN}$.
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <strong>One-Way Shear:</strong><br>
+                        $V_u = ${fmt(V_crit)} \\text{ kN}$<br>
+                        $\\phi V_c = ${fmt(phiVc)} \\text{ kN}$<br>
+                        Status: <span class="${shearPass ? 'check-pass' : 'check-fail'}">${shearPass ? 'PASS' : 'FAIL'}</span>
+                    </div>
+                    <div>
+                        <strong>Punching Shear:</strong><br>
+                        $V_{up} = ${fmt(Vu_punch)} \\text{ kN}$<br>
+                        $\\phi V_{cp} = ${fmt(phiVc_punch)} \\text{ kN}$<br>
+                        Status: <span class="${punchPass ? 'check-pass' : 'check-fail'}">${punchPass ? 'PASS' : 'FAIL'}</span>
+                    </div>
+                </div>
+                ${!shearPass || !punchPass ? '<div class="warning-box"><i class="fa-solid fa-lightbulb"></i> <div><strong>Recommendation:</strong> Increase footing thickness (h) to improve shear capacity.</div></div>' : ''}
             `;
 
             // Step 4 Output
             document.getElementById('step4').innerHTML = `
                 Required Steel Area $A_s = ${fmt(As_req_long)} \\text{ mm}^2$.<br>
                 Provided: <strong>${numBars} - $${mainBarSize} \\text{ mm}$ bars</strong> (Top).<br>
-                Spacing: Approx ${fmt(spacing_avail, 0)} mm c.t.c.
+                Spacing: Approx ${fmt(spacing_avail, 0)} mm c.t.c. <span class="${spacingPass ? 'check-pass' : 'check-fail'}">(${spacingPass ? 'OK' : 'Too Tight'})</span>
+                ${!spacingPass ? `<div class="warning-box"><i class="fa-solid fa-triangle-exclamation"></i> <div><strong>Congestion:</strong> Clear spacing is less than ACI minimum (${min_clear_spacing.toFixed(0)}mm). Use larger bars or increase width.</div></div>` : ''}
             `;
             
             // Step 5 Output
              document.getElementById('step5').innerHTML = `
-                Required Transverse Steel: $${fmt(As_trans_m)} \\text{ mm}^2/\\text{m}$.<br>
-                Provide: <strong>$${mainBarSize} \\text{ mm} @ ${spacing_trans} \\text{ mm c.t.c}$</strong> under columns.
+                <strong>Bottom Transverse (Flexural):</strong><br>
+                Required: $${fmt(As_trans_m)} \\text{ mm}^2/\\text{m}$.<br>
+                Provide: <strong>$${mainBarSize} \\text{ mm} @ ${spacing_trans} \\text{ mm c.t.c}$</strong> concentrated in strips of width $c + d$ under columns.<br><br>
+                <strong>Top Transverse (Minimum):</strong><br>
+                Required: $${fmt(As_min_m)} \\text{ mm}^2/\\text{m}$ (T&S).<br>
+                Provide: <strong>$${mainBarSize} \\text{ mm} @ ${spacing_min} \\text{ mm c.t.c}$</strong> throughout.
             `;
 
             // Populate Table
@@ -472,21 +520,28 @@
                     <td>Long direction</td>
                     <td>$${mainBarSize} \\text{ mm}$</td>
                     <td>$${numBars}$ bars total</td>
-                    <td>Evenly distributed width $B$</td>
+                    <td>Flexural (Negative Moment)</td>
+                </tr>
+                <tr>
+                    <td>Top Transverse</td>
+                    <td>Short direction</td>
+                    <td>$${mainBarSize} \\text{ mm}$</td>
+                    <td>@ $${spacing_min} \\text{ mm c.c.}$</td>
+                    <td>Minimum (T&S)</td>
                 </tr>
                 <tr>
                     <td>Bottom Transverse</td>
                     <td>Short direction</td>
                     <td>$${mainBarSize} \\text{ mm}$</td>
                     <td>@ $${spacing_trans} \\text{ mm c.c.}$</td>
-                    <td>Concentrate under columns</td>
+                    <td>Flexural (Under Columns)</td>
                 </tr>
                 <tr>
-                    <td>Temp / Shrinkage</td>
-                    <td>Bottom Long.</td>
-                    <td>$16 \\text{ mm}$</td>
-                    <td>@ $300 \\text{ mm c.c.}$</td>
-                    <td>Minimum Requirement</td>
+                    <td>Bottom Longitudinal</td>
+                    <td>Long direction</td>
+                    <td>$${mainBarSize} \\text{ mm}$</td>
+                    <td>@ $${spacing_min} \\text{ mm c.c.}$</td>
+                    <td>Minimum (T&S)</td>
                 </tr>
             `;
 
@@ -505,12 +560,12 @@
             };
 
             drawCanvas(L, B, C1, C2, spacing, dist_edge_to_col1, {
-                numBars, spacing_trans, d, h, cover, filters
+                numBars, spacing_trans, spacing_min, d, h, cover, filters
             });
         }
 
         function drawCanvas(L, B, c1, c2, spacing, edgeDist, data) {
-            const { numBars, spacing_trans, d, h, cover, filters } = data;
+            const { numBars, spacing_trans, spacing_min, d, h, cover, filters } = data;
             const canvas = document.getElementById('footingCanvas');
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -570,7 +625,7 @@
             if (filters.topTrans) {
                 ctx.fillStyle = '#94a3b8';
                 const y = elevY + (cover * vScaleH);
-                const s_temp = 0.3; // 300mm
+                const s_temp = spacing_min / 1000;
                 const n_temp = Math.floor((L - 2*cover) / s_temp) + 1;
                 const s_temp_actual = n_temp > 1 ? (L - 2*cover) / (n_temp - 1) : 0;
                 
@@ -589,7 +644,7 @@
                 ctx.strokeStyle = '#94a3b8';
                 ctx.lineWidth = 1.5;
                 const y = elevY + ftgH - (cover * vScaleH);
-                ctx.beginPath();
+                const s_temp = spacing_min / 1000;
                 ctx.moveTo(startX + 10, y);
                 ctx.lineTo(startX + L * scale - 10, y);
                 ctx.stroke();
@@ -662,7 +717,7 @@
             if (filters.topTrans) {
                 ctx.strokeStyle = '#94a3b8';
                 ctx.lineWidth = 1;
-                const s_temp = 0.3; // 300mm
+                const s_temp = spacing_min / 1000;
                 const n_temp = Math.floor((L - 2*cover) / s_temp) + 1;
                 const s_temp_actual = n_temp > 1 ? (L - 2*cover) / (n_temp - 1) : 0;
                 for (let i = 0; i < n_temp; i++) {
@@ -678,7 +733,7 @@
             if (filters.botLong) {
                 ctx.strokeStyle = '#94a3b8';
                 ctx.lineWidth = 1;
-                const s_temp = 0.3; // 300mm
+                const s_temp = spacing_min / 1000;
                 const n_temp = Math.floor((B - 2*cover) / s_temp) + 1;
                 const s_temp_actual = n_temp > 1 ? (B - 2*cover) / (n_temp - 1) : 0;
                 for (let i = 0; i < n_temp; i++) {
