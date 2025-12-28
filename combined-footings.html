@@ -432,11 +432,13 @@
             const rho_trans = (0.85 * fc / fy) * (1 - Math.sqrt(1 - (2 * Rn_trans) / (0.85 * fc)));
             const As_trans_m = Math.max(rho_trans * 1000 * (d*1000), 0.0018 * 1000 * (h*1000));
             
-            const spacing_trans = Math.floor(1000 / (As_trans_m / barArea) / 10) * 10; // Round down to 10mm
+            let spacing_trans = Math.floor(1000 / (As_trans_m / barArea) / 10) * 10; // Round down to 10mm
+            if (spacing_trans < 50) spacing_trans = 50;
 
             // 10. Minimum Reinforcement (Top Transverse & Bottom Longitudinal)
             const As_min_m = 0.0018 * 1000 * (h * 1000); // mm2/m
-            const spacing_min = Math.min(450, Math.floor(1000 / (As_min_m / barArea) / 10) * 10);
+            let spacing_min = Math.min(450, Math.floor(1000 / (As_min_m / barArea) / 10) * 10);
+            if (spacing_min < 50) spacing_min = 50;
 
             // --- RENDER RESULTS ---
             
@@ -560,7 +562,7 @@
             };
 
             drawCanvas(L, B, C1, C2, spacing, dist_edge_to_col1, {
-                numBars, spacing_trans, spacing_min, d, h, cover, filters
+                numBars: Math.min(numBars, 100), spacing_trans, spacing_min, d, h, cover, filters
             });
         }
 
