@@ -23,7 +23,7 @@
         /* Visualization Area */
         .viz-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
             min-height: 400px;
         }
@@ -347,6 +347,10 @@
                 <div class="canvas-title">Elevation View</div>
                 <canvas id="elevCanvas" width="400" height="400"></canvas>
             </div>
+            <div class="canvas-card">
+                <div class="canvas-title">Soil Pressure Distribution</div>
+                <canvas id="pressureCanvas" width="400" height="400"></canvas>
+            </div>
         </div>
 
         <!-- Analysis Results -->
@@ -386,7 +390,7 @@
         const PHI_FLEXURE = 0.90;
         const LAMBDA = 1.0; // Normal weight concrete assumption
 
-        function drawPlan(L, B, c1, c2, pos, h, cover, num_bars) {
+        function drawPlan(L, B, c1, c2, pos, h, cover, num_bars, ex_eff, ey_eff) {
             const canvas = document.getElementById('planCanvas');
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
@@ -499,6 +503,19 @@
                      Math.min(drawB, pH - (startY > pY ? startY-pY : 0))); 
             ctx.stroke();
             ctx.setLineDash([]);
+
+            // Resultant X
+            const resX = startX + (drawL/2 + ex_eff * scale);
+            const resY = startY + (drawB/2 - ey_eff * scale);
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            const xSize = 8;
+            ctx.beginPath();
+            ctx.moveTo(resX - xSize, resY - xSize);
+            ctx.lineTo(resX + xSize, resY + xSize);
+            ctx.moveTo(resX + xSize, resY - xSize);
+            ctx.lineTo(resX - xSize, resY + xSize);
+            ctx.stroke();
         }
 
         function drawElevation(L, h, soilDepth, c1, pos, cover, num_bars) {
@@ -578,6 +595,50 @@
             ctx.fillText(`h = ${h}mm`, startX - 10, floorY + drawH/2);
         }
 
+        function drawPressure(L, q_max, q_net, dist_comp, qa, e) {
+            const canvas = document.getElementById('pressureCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            ctx.clearRect(0, 0, width, height);
+
+            const scaleL = (width - 100) / L;
+            const scaleQ = 150 / Math.max(q_max, qa);
+            const ox = 50, oy = 100;
+
+            // Footing Line
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox + L * scaleL, oy);
+            ctx.stroke();
+
+            // Pressure Polygon (Simplified)
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox + L * scaleL, oy);
+            ctx.lineTo(ox + L * scaleL, oy + (q_max * 0.7) * scaleQ); 
+            ctx.lineTo(ox, oy + q_max * scaleQ);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#3b82f6';
+            ctx.stroke();
+
+            // Resultant Arrow
+            const resX = ox + (L/2 + e) * scaleL;
+            ctx.strokeStyle = '#ef4444';
+            ctx.fillStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(resX, oy - 40); ctx.lineTo(resX, oy - 5); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(resX - 5, oy - 15); ctx.lineTo(resX, oy - 5); ctx.lineTo(resX + 5, oy - 15); ctx.stroke();
+            ctx.font = 'bold 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText('R', resX, oy - 45);
+        }
+
         function toggleEccentricity() {
             const isEccentric = document.getElementById('isEccentric').checked;
             const controls = document.getElementById('eccentricControls');
@@ -634,13 +695,30 @@
             const stress_conc = (h/1000) * wc;
             const q_net_allow = qa - stress_soil - stress_conc - sur;
 
-            // Factored Soil Pressure (Upward)
-            // q = P/A +/- 6My/BL^2 +/- 6Mx/LB^2
-            let q_u = P_u / Af;
-            let q_u_max = q_u + (6 * Math.abs(M_uy)) / (B * L * L) + (6 * Math.abs(M_ux)) / (L * B * B);
-            
-            // Service pressure for bearing check
-            let q_s_max = (P_serv / Af) + (6 * Math.abs(M_sy)) / (B * L * L) + (6 * Math.abs(M_sx)) / (L * B * B);
+            // 3. Eccentricity and Pressure Distribution
+            const ex_s = Math.abs(M_sy) / P_serv;
+            const ey_s = Math.abs(M_sx) / P_serv;
+            const ex_u = Math.abs(M_uy) / P_u;
+            const ey_u = Math.abs(M_ux) / P_u;
+
+            let ex_eff_signed = 0, ey_eff_signed = 0;
+
+            let q_s_max, q_u_max;
+
+            // Check for Uplift (Resultant outside Kern L/6)
+            if (ex_s > L/6 || ey_s > B/6) {
+                // Triangular Distribution (ACI Section 12.12 / Fig 12.24)
+                // q_max = 2P / (3 * B * (L/2 - e))
+                const a_s = (L/2) - ex_s;
+                q_s_max = (2 * P_serv) / (3 * B * a_s);
+                
+                const a_u = (L/2) - ex_u;
+                q_u_max = (2 * P_u) / (3 * B * a_u);
+            } else {
+                // Standard Elastic Distribution
+                q_s_max = (P_serv / Af) + (6 * Math.abs(M_sy)) / (B * L * L) + (6 * Math.abs(M_sx)) / (L * B * B);
+                q_u_max = (P_u / Af) + (6 * Math.abs(M_uy)) / (B * L * L) + (6 * Math.abs(M_ux)) / (L * B * B);
+            }
 
             let eccentricity_note = "";
             let uplift_fail = false;
@@ -654,27 +732,29 @@
                     ey = (B/2) - (c2/1000)/2;
                 }
                 
-                const M_ex = P_serv * ey;
-                const M_ey = P_serv * ex;
-                q_s_max = (P_serv / Af) + (6 * Math.abs(M_sy + M_ey)) / (B * L * L) + (6 * Math.abs(M_sx + M_ex)) / (L * B * B);
-                
-                const M_uex = P_u * ey;
-                const M_uey = P_u * ex;
-                q_u_max = (P_u / Af) + (6 * Math.abs(M_uy + M_uey)) / (B * L * L) + (6 * Math.abs(M_ux + M_uex)) / (L * B * B);
+                const M_total_sx = M_sx + P_serv * ey;
+                const M_total_sy = M_sy + P_serv * ex;
+                const ex_eff = Math.abs(M_total_sy) / P_serv;
+                const ey_eff = Math.abs(M_total_sx) / P_serv;
 
-                // Kern Check (Middle Third)
-                const ex_total = (M_sy + M_ey) / P_serv;
-                const ey_total = (M_sx + M_ex) / P_serv;
-                let uplift_warning = "";
-                if (Math.abs(ex_total) > L/6 || Math.abs(ey_total) > B/6) {
-                    uplift_warning = `<div class="warning-box" style="background:#fee2e2; border-color:#f87171; color:#991b1b;"><i class="fa-solid fa-circle-exclamation"></i>&nbsp; <strong>Uplift Alert:</strong> Resultant force is outside the middle third (Kern). Uplift occurs.</div>`;
+                ex_eff_signed = (M_sy + P_serv * ex) / P_serv;
+                ey_eff_signed = (M_sx + P_serv * ey) / P_serv;
+
+                if (ex_eff > L/6 || ey_eff > B/6) {
+                    const a_s = (L/2) - ex_eff;
+                    q_s_max = (2 * P_serv) / (3 * B * a_s);
+                    const a_u = (L/2) - (Math.abs(M_uy + P_u * ex) / P_u);
+                    q_u_max = (2 * P_u) / (3 * B * a_u);
                     uplift_fail = true;
+                } else {
+                    q_s_max = (P_serv / Af) + (6 * Math.abs(M_total_sy)) / (B * L * L) + (6 * Math.abs(M_total_sx)) / (L * B * B);
+                    q_u_max = (P_u / Af) + (6 * (Math.abs(M_uy) + P_u * ex)) / (B * L * L) + (6 * (Math.abs(M_ux) + P_u * ey)) / (L * B * B);
                 }
 
-                eccentricity_note = `<div class="warning-box"><i class="fa-solid fa-triangle-exclamation"></i>&nbsp; Note: Column is eccentric. $q_{u,max}$ increases to ${q_u_max.toFixed(2)} \\text{ kPa}$. Uplift may occur if $e > L/6$ (${(L/6).toFixed(3)} \\text{ m}$).</div>` + uplift_warning;
+                eccentricity_note = `<div class="warning-box"><i class="fa-solid fa-triangle-exclamation"></i>&nbsp; Note: Column is eccentric. $q_{u,max}$ recalculated using ${uplift_fail ? 'triangular' : 'linear'} distribution.</div>`;
             }
 
-            // 3. One-Way Shear (Wide Beam)
+            // 4. One-Way Shear (Wide Beam)
             // Critical section at d from face of support
             // Calculate projection length
             let proj_x;
@@ -734,12 +814,12 @@
 
             const V_u2 = P_u - (q_u_max * area_deduct); // Conservative using q_u_max
 
-            // 5. Flexure (Moment)
+            // 6. Flexure (Moment)
             // Critical section at face of column
             // M = q * B * proj^2 / 2
             const M_u = q_u_max * B * Math.pow(proj_x, 2) / 2; // kNm
 
-            // Reinforcement Required
+            // 7. Reinforcement Required
             // Mu = phi * As * fy * (d - a/2)
             // Approx As first: As = Mu / (phi * fy * 0.9d)
             const approx_As = (M_u * 1e6) / (PHI_FLEXURE * fy * 0.9 * d); // mm2
@@ -766,7 +846,7 @@
             if (spacing > 450) { spacing_status = "Too Wide ($> 450 \\text{ mm}$)"; spacing_ok = false; }
             if (spacing > 3*h) { spacing_status = "Too Wide ($> 3h$)"; spacing_ok = false; }
 
-            // 6. Development Length check (Simple Check)
+            // 8. Development Length check (Simple Check)
             // Basic Ld equation (Simplified)
             // Ld approx = (fy * db) / (2 * sqrt(fc)) roughly, need real ACI metric eq
             // Metric: Ld = (fy / (1.1 * lambda * sqrt(fc))) * db * ... factors
@@ -774,7 +854,7 @@
             const Ld_req = 50 * db; 
             const L_avail = (proj_x * 1000) - cc;
 
-            // 7. Render Output
+            // 9. Render Output
             let pass = true;
             if (q_s_max > q_net_allow + stress_conc + stress_soil + sur) pass = false; // Gross check
             if (V_u1 > phi_Vc_1way) pass = false;
@@ -809,7 +889,12 @@
                     <div class="check-card ${uplift_fail ? 'fail' : 'pass'}">
                         <h3>2. Stability (Uplift) <span>${uplift_fail ? '<i class="fa-solid fa-circle-xmark"></i>' : '<i class="fa-solid fa-circle-check"></i>'}</span></h3>
                         <p style="font-size:0.9rem;">Resultant eccentricity check within the kern ($L/6$).</p>
-                        ${uplift_fail ? '<div class="warning-box" style="margin-top:10px;"><i class="fa-solid fa-lightbulb"></i> <strong>Recommendation:</strong> Increase footing size to keep the resultant force within the middle third (kern). This prevents soil separation and ensures stability.</div>' : ''}
+                        ${uplift_fail ? `
+                            <div class="warning-box" style="margin-top:10px; border-left: 4px solid var(--error);">
+                                <i class="fa-solid fa-lightbulb"></i> <strong>Elegant Engineering Solutions:</strong><br>
+                                1. <strong>Increase Thickness ($h$):</strong> Adds stabilizing dead weight to pull the resultant back into the kern.<br>
+                                2. <strong>Increase Length ($L$):</strong> Expands the kern limit ($L/6$).<br>
+                                3. <strong>Offset Column:</strong> If the moment is permanent, shift the column toward the 'heel' to center the resultant.</div>` : ''}
                     </div>
                 `;
             }
@@ -880,8 +965,9 @@
             `;
 
             // Draw Visuals
-            drawPlan(L, B, c1, c2, pos, h, cc, num_bars);
+            drawPlan(L, B, c1, c2, pos, h, cc, num_bars, ex_eff_signed, ey_eff_signed);
             drawElevation(L, h, soilDepth, c1, pos, cc, num_bars);
+            drawPressure(L, q_s_max, q_net_allow, L, qa, ex_eff_signed);
 
             // Re-render MathJax
             if(window.MathJax) {

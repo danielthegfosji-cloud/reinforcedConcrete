@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eccentric Footing Solver | RC Design Suite</title>
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .viz-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 420px;
+        }
+
+        .canvas-title {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            width: 100%;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 0.5rem;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        canvas {
+            max-width: 100%;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            border: 1px dashed #cbd5e1;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 1rem;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 99px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .status-pass { background: #dcfce7; color: #166534; }
+        .status-fail { background: #fee2e2; color: #991b1b; }
+        .status-warn { background: #fffbeb; color: #92400e; }
+
+        .math-block {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent);
+            overflow-x: auto;
+        }
+
+        .check-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+        }
+        .check-card.pass { border-left: 5px solid var(--success); }
+        .check-card.fail { border-left: 5px solid var(--error); }
+        .check-card.warn { border-left: 5px solid var(--warning); }
+        
+        .check-card h3 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .warning-box {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: start;
+            gap: 10px;
+        }
+
+        .pressure-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <a href="index.html" class="back-btn">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+
+        <div class="input-panel">
+            <h2 class="panel-title">Eccentric Solver</h2>
+            
+            <div class="section-header">Loads & Soil</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Axial $P_{serv}$ (kN)</label>
+                    <input type="number" id="P" value="1200" onchange="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Moment $M_{serv}$ (kNm)</label>
+                    <input type="number" id="M" value="300" onchange="calculate()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Allowable $q_a$ (kPa)</label>
+                <input type="number" id="qa" value="250" onchange="calculate()">
+            </div>
+
+            <div class="section-header">Footing Geometry</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Width $B$ (m)</label>
+                    <input type="number" id="B" value="3.0" step="0.1" onchange="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Length $L$ (m)</label>
+                    <input type="number" id="L" value="3.0" step="0.1" onchange="calculate()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Thickness $h$ (mm)</label>
+                <input type="number" id="h" value="600" step="50" onchange="calculate()">
+            </div>
+
+            <button class="action-btn" onclick="solveForLength()">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Size Length ($L$)
+            </button>
+
+            <div class="section-header">Materials</div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label>Concrete $f'_c$</label>
+                    <input type="number" id="fc" value="28" onchange="calculate()">
+                </div>
+                <div class="form-col">
+                    <label>Steel $f_y$</label>
+                    <input type="number" id="fy" value="420" onchange="calculate()">
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-view">
+        <div class="hero">
+            <h1>Eccentric Footing Solver</h1>
+            <p>Solve for footing dimensions and reinforcement for columns with large moments. Implements Section 12.12 triangular pressure distribution for uplift cases.</p>
+        </div>
+
+        <div class="grid-container">
+            <div class="viz-card">
+                <h4 class="canvas-title">Soil Pressure Distribution</h4>
+                <canvas id="pressureCanvas" width="450" height="350"></canvas>
+                <div id="pressureDetails" class="pressure-label"></div>
+            </div>
+            <div class="viz-card">
+                <h4 class="canvas-title">Footing Plan & Rebar</h4>
+                <canvas id="planCanvas" width="450" height="350"></canvas>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 2rem;">
+            <div class="results-header">
+                <h2>Design Summary</h2>
+                <span id="statusBadge" class="status-badge">Calculating...</span>
+            </div>
+            <div id="resultsArea"></div>
+        </div>
+    </main>
+
+    <script>
+        function solveForLength() {
+            const P = parseFloat(document.getElementById('P').value);
+            const M = parseFloat(document.getElementById('M').value);
+            const qa = parseFloat(document.getElementById('qa').value);
+            const B = parseFloat(document.getElementById('B').value);
+            
+            let L = 1.0;
+            let iterations = 0;
+            let found = false;
+
+            // Iterative solver to find L where q_max <= qa
+            while (L < 15.0 && iterations < 100) {
+                const e = M / P;
+                let q_max;
+
+                if (e <= L / 6) {
+                    q_max = (P / (B * L)) * (1 + (6 * e / L));
+                } else {
+                    const a = (L / 2) - e;
+                    q_max = (2 * P) / (3 * B * a);
+                }
+
+                if (q_max <= qa) {
+                    found = true;
+                    break;
+                }
+                L += 0.05;
+                iterations++;
+            }
+
+            if (found) {
+                document.getElementById('L').value = L.toFixed(2);
+                calculate();
+            } else {
+                alert("Could not find a valid length within 15m. Try increasing Width (B).");
+            }
+        }
+
+        function calculate() {
+            const P = parseFloat(document.getElementById('P').value);
+            const M = parseFloat(document.getElementById('M').value);
+            const qa = parseFloat(document.getElementById('qa').value);
+            const B = parseFloat(document.getElementById('B').value);
+            const L = parseFloat(document.getElementById('L').value);
+            const h = parseFloat(document.getElementById('h').value);
+            const fc = parseFloat(document.getElementById('fc').value);
+            const fy = parseFloat(document.getElementById('fy').value);
+
+            const e = M / P;
+            const kern = L / 6;
+            const isUplift = e > kern;
+
+            let q_max, q_min, dist_compressed;
+
+            if (!isUplift) {
+                q_max = (P / (B * L)) * (1 + (6 * e / L));
+                q_min = (P / (B * L)) * (1 - (6 * e / L));
+                dist_compressed = L;
+            } else {
+                const a = (L / 2) - e;
+                q_max = (2 * P) / (3 * B * a);
+                q_min = 0;
+                dist_compressed = 3 * a;
+            }
+
+            // Render Status
+            const pass = q_max <= qa;
+            const badge = document.getElementById('statusBadge');
+            badge.className = 'status-badge ' + (pass ? 'status-pass' : 'status-fail');
+            badge.innerText = pass ? 'Bearing OK' : 'Bearing Capacity Exceeded';
+
+            // Render Results
+            let html = `
+                <div class="check-card ${pass ? 'pass' : 'fail'}">
+                    <h3>1. Bearing Pressure Check <span>${pass ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-circle-xmark"></i>'}</span></h3>
+                    <div class="math-block">
+                        $$e = M/P = ${e.toFixed(3)} \\text{ m} \\quad \\text{Kern } (L/6) = ${kern.toFixed(3)} \\text{ m}$$
+                        $$q_{max} = ${q_max.toFixed(2)} \\text{ kPa} \\quad q_{allow} = ${qa} \\text{ kPa}$$
+                    </div>
+                    ${isUplift ? '<div class="warning-box"><i class="fa-solid fa-triangle-exclamation"></i> <strong>Uplift Alert:</strong> Resultant is outside the middle third. Pressure recalculated using triangular distribution (Section 12.12).</div>' : ''}
+                </div>
+
+                <div class="check-card ${isUplift ? 'warn' : 'pass'}">
+                    <h3>2. Stability & Kern Check <span>${!isUplift ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-triangle-exclamation"></i>'}</span></h3>
+                    <p>Resultant is <strong>${isUplift ? 'OUTSIDE' : 'INSIDE'}</strong> the middle third.</p>
+                    ${isUplift ? '<div class="warning-box"><i class="fa-solid fa-lightbulb"></i> <strong>Recommendation:</strong> Increase footing length ($L$) or thickness ($h$) to pull the resultant back into the kern.</div>' : ''}
+                </div>
+            `;
+
+            // Simple Reinforcement (Flexure at face of 400mm column)
+            const proj = (L - 0.4) / 2;
+            const Mu = q_max * B * Math.pow(proj, 2) / 2;
+            const d = h - 100; // approx
+            const As_req = (1.2 * Mu * 1e6) / (0.9 * fy * 0.9 * d);
+            const As_min = 0.0018 * B * 1000 * h;
+            const As_design = Math.max(As_req, As_min);
+            const n_bars = Math.ceil(As_design / 491); // 25mm bars
+
+            html += `
+                <div class="check-card pass">
+                    <h3>3. Flexural Reinforcement <span><i class="fa-solid fa-circle-check"></i></span></h3>
+                    <div class="math-block">
+                        $$M_u \\approx ${Mu.toFixed(1)} \\text{ kNm} \\quad A_{s,design} = ${As_design.toFixed(0)} \\text{ mm}^2$$
+                        $$ \\text{Provide: } ${n_bars} - 25\\text{mm bars each way}$$
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('resultsArea').innerHTML = html;
+            document.getElementById('pressureDetails').innerText = `q_max: ${q_max.toFixed(1)} kPa | q_min: ${q_min.toFixed(1)} kPa | Compressed Length: ${dist_compressed.toFixed(2)}m`;
+
+            drawPressure(L, q_max, q_min, dist_compressed, qa, e);
+            drawPlan(L, B, n_bars, e);
+            MathJax.typesetPromise();
+        }
+
+        function drawPressure(L, q_max, q_min, dist_comp, qa, e) {
+            const canvas = document.getElementById('pressureCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const scaleL = 350 / L;
+            const scaleQ = 150 / Math.max(q_max, qa);
+            const ox = 50, oy = 100;
+
+            // Footing Line
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox + L * scaleL, oy);
+            ctx.stroke();
+
+            // Pressure Polygon
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox + dist_comp * scaleL, oy);
+            ctx.lineTo(ox + dist_comp * scaleL, oy + q_min * scaleQ);
+            ctx.lineTo(ox, oy + q_max * scaleQ);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#3b82f6';
+            ctx.stroke();
+
+            // Allowable Line
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(ox - 10, oy + qa * scaleQ);
+            ctx.lineTo(ox + L * scaleL + 10, oy + qa * scaleQ);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Labels
+            ctx.fillStyle = '#ef4444';
+            ctx.font = '10px Inter';
+            ctx.fillText(`Allowable: ${qa} kPa`, ox + L * scaleL - 80, oy + qa * scaleQ - 5);
+
+            // Resultant Arrow
+            const resX = ox + (L/2 - e) * scaleL;
+            ctx.strokeStyle = '#ef4444';
+            ctx.fillStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(resX, oy - 40);
+            ctx.lineTo(resX, oy - 5);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(resX - 5, oy - 15);
+            ctx.lineTo(resX, oy - 5);
+            ctx.lineTo(resX + 5, oy - 15);
+            ctx.stroke();
+            ctx.font = 'bold 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText('R', resX, oy - 45);
+        }
+
+        function drawPlan(L, B, n_bars, e) {
+            const canvas = document.getElementById('planCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const scale = 300 / Math.max(L, B);
+            const ox = (450 - L * scale) / 2;
+            const oy = (350 - B * scale) / 2;
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.strokeStyle = '#334155';
+            ctx.fillRect(ox, oy, L * scale, B * scale);
+            ctx.strokeRect(ox, oy, L * scale, B * scale);
+
+            // Rebar (Both ways)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1;
+            const spacingL = (L * scale - 40) / (n_bars - 1);
+            const spacingB = (B * scale - 40) / (n_bars - 1);
+            
+            // Vertical bars
+            for (let i = 0; i < n_bars; i++) {
+                ctx.beginPath();
+                ctx.moveTo(ox + 20 + i * spacingL, oy + 10);
+                ctx.lineTo(ox + 20 + i * spacingL, oy + B * scale - 10);
+                ctx.stroke();
+            }
+            // Horizontal bars
+            for (let i = 0; i < n_bars; i++) {
+                ctx.beginPath();
+                ctx.moveTo(ox + 10, oy + 20 + i * spacingB);
+                ctx.lineTo(ox + L * scale - 10, oy + 20 + i * spacingB);
+                ctx.stroke();
+            }
+
+            // Resultant X
+            const resX = ox + (L/2 - e) * scale;
+            const resY = oy + (B * scale) / 2;
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            const xSize = 8;
+            ctx.beginPath();
+            ctx.moveTo(resX - xSize, resY - xSize);
+            ctx.lineTo(resX + xSize, resY + xSize);
+            ctx.moveTo(resX + xSize, resY - xSize);
+            ctx.lineTo(resX - xSize, resY + xSize);
+            ctx.stroke();
+
+            // Column
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(ox + (L * scale) / 2 - 20, oy + (B * scale) / 2 - 20, 40, 40);
+        }
+
+        window.onload = calculate;
+    </script>
+</body>
+</html>
